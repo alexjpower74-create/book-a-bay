@@ -247,3 +247,18 @@ These are bb1's readings of the contract, reviewed and adopted. Both slices foll
 18. **Every miss under `/api/r/*`**, whatever the token looks like (too short, bad characters, unknown), answers
     `404 {"error":"We could not find that booking. Please check the link the shop sent you.","code":"not_found"}`. A link cut short
     when pasted into a text message must read the same as an unknown one.
+
+## Clarifications (lead, after bb1's cross-review of bb2 M2, 2026-09-14 03:40)
+
+19. **Pickers for moving an existing request use the request's own service snapshot and treat its own hold as free**, so a service the
+    shop has since taken offline can still be moved, and a time blocked only by the customer's current booking is offered.
+    - `GET /api/shop/days?exclude=<request id>` (shop, Bearer) → same shape as `/api/days`, for that request's service, own hold free.
+    - `GET /api/r/:token/days` → same shape as `/api/days`, for that request's service, own hold free.
+    - `GET /api/r/:token/slots?date=YYYY-MM-DD` → same shape as `/api/slots`, own hold free.
+    `GET /api/shop/slots?service=&date=&exclude=` already exists; with `exclude` it uses the snapshot, and `service` may be omitted.
+    The customer picker (`status.js`) and the shop offer picker (`shop.js`) switch to these. A miss under `/api/r/*` still answers the one
+    booking 404 (clarification 18).
+20. **Block-out `label` is 1–40 characters** (`400 field: label` otherwise).
+21. **`PUT /api/shop/pin` with a wrong current PIN** answers `401 {"error":"That PIN is not right.","code":"unauthorized","field":"current"}`.
+    A 401 without `field` means the session is gone, and the app signs out.
+22. **The shop screen shows `pushed_at`** on a confirmed item ("Sent to Shop Board 3:12 AM"), so a reload or another device can see it went.
