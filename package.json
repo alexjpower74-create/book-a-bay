@@ -1,0 +1,12 @@
+{
+  "name": "book-a-bay",
+  "private": true,
+  "type": "module",
+  "description": "Online booking requests for small auto repair shops, an add-on to Shop Board. Local build; see README.md.",
+  "scripts": {
+    "demo": "node demo.mjs",
+    "test:worker": "cd worker && npm test",
+    "test:race-control": "cd worker && npm run negative:race",
+    "test:e2e": "cd app && npx playwright test"
+  }
+}
