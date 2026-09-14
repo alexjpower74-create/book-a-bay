@@ -81,4 +81,55 @@ I looked at them: the SAMPLE badge sits beside the name at 390 and wraps under i
 - None blocking. For M2 I need bb1's M1 merged (`/api/test/reset`, `TEST_MODE`, the shop routes). A cross-review question for bb1:
   does `POST /api/requests` validation return `field` for each input (the form puts those errors inline)?
 
-## M2 — not started (waiting for the lead's prompt, per PLAN)
+## Cross-review of bb1 M1 — DONE
+
+Rebased on main (`a5e7cba`, bb1 M1 merged). I read the 7 API.md clarifications. Real Worker from this worktree:
+`wrangler d1 migrations apply book-a-bay --local --persist-to .state-7303`, then
+`wrangler dev --local --port 7303 --inspector-port 7313 --persist-to .state-7303 --var TEST_MODE:1`.
+Every request below sent `X-Test-Now: 2026-09-14T11:30:00Z` after `POST /api/test/reset`, or after `/api/test/seed` where it says so.
+
+**How I walked it.** `node tests/shots-m1.mjs --real` opens the Worker on 7303 directly: no mock, `extraHTTPHeaders` carries the clock,
+and each scenario resets first. It covers chromium-390/1280 and webkit-390/1280. Setup goes through the API only: two other customers
+taking 10:00, sign-in, board, confirm, seed.
+**178 passed, 0 failed, 5 waiting on bb1 M2** (distinct steps, each on all 4 projects: ics returns text/calendar, Cancel → Cancelled,
+Accept → Confirmed, Pick another time → Requested, a declined booking, which needs decline). The same run covers:
+- journey → Request sent → the real status page says Requested;
+- the shop confirms through the API → after a reload the page says Confirmed, and Add to calendar's href = `ics_url`;
+- two real 201s at Tue 10:00, then this customer's Send gets the real 409 with exactly three alternatives, and one of them reaches Request sent;
+- the seeded offered request shows New time offered with the board's `offer.label` and the shop note;
+- a dead link shows the Worker's not-found text.
+
+Negative control for the real walk: `confirmed` label broken to "Requested" in `ui.js`, chromium only →
+red (output under "Numbers" below), restored, green again.
+
+### Differences found
+
+| # | What | Exact request → response | Verdict |
+|---|---|---|---|
+| 1 | Service ids | `GET /api/shop` → services `oil`, `tire-swap`, `brakes`, `diagnostic`, `truck-rv` (120 min, `bays_needed: 2`). My mock had `tires` and no `truck-rv`. | **fixed in app** (mock now copies `0002_defaults.sql`) |
+| 2 | Error wording differs from the mock | e.g. `POST /api/requests {…"phone":"12"}` → `400 {"error":"Please enter a phone number the shop can call, like 709-555-0142.","code":"bad_request","field":"phone"}`; year `"Year should be 4 digits, like 2016."`; model `"Please keep the model to 40 characters or fewer."`; `GET /api/slots?service=oil&date=2026-10-30` → `400 {"error":"That day is not open for booking online.",…,"field":"date"}`; `date=nope` → `"Please pick a day."`; `service=tires` → `"Please pick a service."` | **fixed in app** (mock uses the Worker's texts and its validation order: service, date, time, then customer fields). The page's own inline messages stay as they were; they only show before a request is sent, and anything the server refuses is shown in its own words. |
+| 3 | Off-grid `time` is a 400 on `time`, not a 409 (clarification 3) | `POST /api/requests {"service":"oil","date":"2026-09-15","time":"10:10",…}` → `400 {"error":"That time is not open for booking. Please pick another.","code":"bad_request","field":"time"}`. The form has no `time` input, so the message had nowhere to go and no way back. | **fixed in app**: `service`/`date`/`time` 400s show the text with a "Pick another time / day / service" button. The mock returns the same 400. |
+| 4 | Short or malformed status token reads wrong to a customer | `GET /api/r/nope` → `404 {"error":"Not found.","code":"not_found"}`. A well-formed unknown token gets `404 {"error":"We could not find that booking. Please check the link the shop sent you.","code":"not_found"}`. The difference is the router's `{16,128}` token pattern: a link cut short when pasted into a text gets the bare "Not found.". | **for bb1**: answer every `/api/r/*` miss with the booking text. The app shows it under "We could not open that booking", so it is readable today, just thin. The mock copies the real behaviour. |
+| 5 | Mock demo tokens were shorter than 16 | the real router would 404 `demo-offered` as "Not found." | **fixed in app** (`demo-offered-sample` etc.) |
+| 6 | An offered request's `offer` has no `bays` | seeded, `GET /api/shop/board?days=7` → the Thu Sep 17 item `{"kind":"request","request":{"status":"offered","date":"2026-09-16","time":"14:00","bays":[1],"offer":{"date":"2026-09-17","time":"09:00","end":"10:00","label":"Thu Sep 17, 9:00 AM"},…}}`. Clarification 5 puts the item at the offer time, but `bays` is the original ask's bays, and the bays the offer holds (`offer_bays`) are not in the view, so the Today board cannot tell which bay column to draw it in. | **for bb1 / lead**: add `bays` to `offer` (`{date,time,end,label,bays}`). Until then the app draws an offered item in `request.bays`, which can be the wrong column. |
+| 7 | Message grammar with plural or odd service names | seeded board, requested brakes: `"Hi Jordan, it's SAMPLE Auto Service. We got your request for your brakes on Tue Sep 15 at 9:00 AM. …"`; confirmed text reads "Your brakes is booked…"; diagnostic: "take your diagnostic on …". | **for bb1** (bb1 already listed it): e.g. "your Brakes appointment" / "your booking (Brakes)". The app copies the text as is, apart from the link (clarification 4). |
+| 8 | A grid time inside the lead time answers "just taken" | `POST /api/requests {…"date":"2026-09-14","time":"09:30"}` at 9:00 AM NDT → `409 {"error":"Sorry, that time was just taken.","code":"taken","next":[10:00, 10:30, 11:00 Mon]}` | **no change**: that is clarification 3. A customer only gets here from a page left open past the lead time, and the three next times are the right recovery. |
+| 9 | Status view of an offered request | `date`/`time`/`label` = the original ask, `offer` = the new time | matches the app ("You asked for" + the offer box); no change |
+| 10 | Static serving | `GET /` 200 html · `GET /r/?t=abc` 200 html · `GET /r` → 307 `/r/` · `GET /shop/` → `404 application/json` | `/shop/` is the M2 page I have not built yet; no change for bb1 |
+| 11 | Routes bb1 M1 does not have yet | `POST /api/r/<t>/accept`, `GET /api/r/<t>/ics` → `404 {"error":"Not found.","code":"not_found"}` | expected (bb1 M2), reported as WAIT, not as a mismatch |
+
+Checked and matching API.md: `/api/shop` keys and `today`/`now` from the test clock; `/api/days` 14 entries with `Closed Sundays` and
+`Staff training (sample)` on Sep 21 (clarification 2); `/api/slots` closed day `open:false, slots:[]`; `201 {id, token, status, status_url}`;
+every 400 carries `field` (name, phone, year, make, model, note, time, date, service, days); wrong PIN
+`401 {"error":"That PIN is not right.","code":"unauthorized"}`; board without a token `401 "Please sign in again."`; confirm on an unknown id
+`404 "That request is not on the board any more."`; `days=3` → `400 field days`; `pending` and `messages` shapes (requested lists
+received/confirmed/declined, offered lists offered; text holds the bare `/r/?t=` path, which the app will replace per clarification 4).
+
+### Numbers (this worktree, after the fixes)
+- `node tests/shots-m1.mjs --real`: `178 passed, 0 failed, 5 waiting on bb1 M2`, exit 0.
+- `node tests/shots-m1.mjs --no-shots` (mock): `186 passed, 0 failed`, exit 0.
+- Negative control, real walk: `confirmed: { label: 'Requested' }` in `ui.js`, `--real --engine chromium` → exit 1,
+  `FAIL journey: locator.waitFor: Timeout 6000ms exceeded.` (390 and 1280: the pill never says Confirmed after the shop confirms),
+  `83 passed, 2 failed`. Restored; the full real run is green again (above).
+
+## M2 — in progress
