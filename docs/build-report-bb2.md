@@ -132,6 +132,48 @@ received/confirmed/declined, offered lists offered; text holds the bare `/r/?t=`
   `FAIL journey: locator.waitFor: Timeout 6000ms exceeded.` (390 and 1280: the pill never says Confirmed after the shop confirms),
   `83 passed, 2 failed`. Restored; the full real run is green again (above).
 
+## Sticky header no longer shows scrolled content through it — DONE
+
+**Defect** (lead's demo shot, webkit-390): after Send request the page scrolls to Request sent, and the progress tiles' labels read
+crisply through the sticky header. Cause: `.bar` took the `.glass` background `rgba(17, 24, 42, 0.72)`, and WebKit on the phone did not blur what was
+behind it. The same `.bar` is on the status page and the shop side, and all three showed it.
+
+**Fix** (`theme.css`): `.bar` has its own solid `background: #0d1425` (Cosmic `--bg-2`). It sits after `.glass`, so it wins.
+- **My first fix was not enough:** `rgba(13, 20, 37, 0.94)` passed a 0.9 check, but the fresh webkit-390 shots still showed card text legibly through the header ("709-555-0128 · Bay 1", "Winter tires are in the trunk." on the shop board; faint step labels and "Requested" on the other two pages). chromium-390's shop board showed it faintly too.
+- So the header is solid, and the check requires it.
+
+**Test** `header.spec.mjs` on all 4 projects, for Request sent, the status page and the seeded shop board:
+- Scroll as far as the page goes: a real wheel on 1280. Touch projects have no wheel in Playwright, so there the page is scrolled directly; that is staging only, because the checks read paint and stacking.
+- The header's computed background alpha must be **≥ 0.99**, and `elementFromPoint` at the header's centre must be inside the header.
+- Where the page is tall enough to put content under the header, it must have been scrolled past the header.
+- A viewport screenshot of each scrolled page goes to `app/tests/shots/<project>-header-<page>.png`.
+- The first run, on the unfixed CSS, was red on the real defect: webkit-390 on all three pages, `header background rgba(17, 24, 42, 0.72) … Received: 0.72`.
+- It also exposed my own test mistake: I required a scroll past the header even on pages shorter than the screen (`Expected: > 47 · Received: 0`). The scroll is now required only where the page has room for it.
+
+**Negative controls** (after the fix; `theme.css` restored from the backup and checked with `cmp` after each):
+- **A. Old glass background** (the `.bar` background removed): `header.spec` **12 of 12 red**, 3 of 3 on every project including webkit-390:
+  `Error: request-sent: header background rgba(17, 24, 42, 0.72) is solid · Expected: >= 0.99 · Received: 0.72`
+- **B. The 0.94 tint** (my first attempt): **12 of 12 red**, including webkit-390:
+  `Error: request-sent: header background rgba(13, 20, 37, 0.94) is solid · Expected: >= 0.99 · Received: 0.94`
+- With the fix, `header.spec` was 12/12 green before the breaks.
+
+**Numbers:** `npx playwright test`, real Worker on 7303, after the restore:
+
+| Project | Passed | Failed | Skipped |
+|---|---|---|---|
+| chromium-390 | 24 | 0 | 0 |
+| chromium-1280 | 24 | 0 | 0 |
+| webkit-390 | 24 | 0 | 0 |
+| webkit-1280 | 24 | 0 | 0 |
+| **Total** | **96** | **0** | **0** (6.0 min) |
+
+**Screenshots looked at** after the solid fix, scrolled, at 390:
+- webkit: `header-request-sent`, `header-status`, `header-shop-board`;
+- chromium: `header-shop-board`; its Request sent and status pages are too short to scroll under the header.
+
+In each, the header is a solid dark band: the Book a Bay logo, and Board/Settings on the shop, sit on it cleanly, and nothing from the page reads through. The
+tiles, status pill and card text stop at the header's bottom edge.
+
 ## Guard for the M1 sticky-header bug that tap() could hide — DONE
 
 `tap()` scrolls a target out from under the sticky header before hit-testing (accepted in M2b). That means a test that taps the name field
