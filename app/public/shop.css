@@ -180,7 +180,8 @@
   .service-row { grid-template-columns: minmax(0, 1fr) 150px 120px auto auto; }
 }
 .service-row.inactive .field input { color: var(--text-3); }
-.savebar { position: sticky; bottom: 12px; z-index: 10; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 10px 12px; border-radius: var(--radius); }
+/* Solid Cosmic ground like the header (DECISIONS 26): as glass, Settings fields read through it on webkit-390. */
+.savebar { background: #0d1425; position: sticky; bottom: 12px; z-index: 10; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 10px 12px; border-radius: var(--radius); }
 .savebar .saved { color: #a7f3d0; font-weight: 600; }
 .pin-form .alert, .pin-form .okmsg { margin: 12px 0 0; }
 

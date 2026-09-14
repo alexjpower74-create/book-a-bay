@@ -132,6 +132,47 @@ received/confirmed/declined, offered lists offered; text holds the bare `/r/?t=`
   `FAIL journey: locator.waitFor: Timeout 6000ms exceeded.` (390 and 1280: the pill never says Confirmed after the shop confirms),
   `83 passed, 2 failed`. Restored; the full real run is green again (above).
 
+## Sticky Save bar on Settings is solid too — DONE
+
+**Defect** (lead's demo shot, Settings at webkit-390): the sticky Save settings bar used the `.glass` background `rgba(17, 24, 42, 0.72)`, and the
+Earliest booking label and its "1 hour from now" value read through it. This is the same class as the header (DECISIONS 26).
+
+**Fix** (`shop.css`): `.savebar` has its own solid `background: #0d1425` (Cosmic `--bg-2`). `shop.css` loads after `theme.css`, so it wins over `.glass`.
+
+**Other sticky or fixed bars in `app/public`:** none left over content.
+- The search (`position: sticky|fixed` in CSS, JS and HTML) found only `.bar` (already solid) and `.savebar`.
+- `.aurora` and `.dots` are fixed decorative backgrounds behind everything (z-index −2 and −1, `pointer-events: none`).
+- `ui.js`'s `position:fixed` textarea is an invisible element used only during a copy fallback.
+
+**Test** `header.spec.mjs` › "Settings: fields under the sticky Save bar do not show through it", all 4 projects:
+- Sign in, open Settings, scroll 400 px (a real wheel on 1280, a direct scroll on touch projects).
+- The Save bar must be on screen.
+- `elementsFromPoint` at five points across the bar must find settings content (inside a section panel or the PIN form) underneath it.
+- `elementFromPoint` at the bar's centre must be the bar or its button, and the bar's computed background alpha must be ≥ 0.99.
+- A viewport screenshot goes to `app/tests/shots/<project>-header-settings-savebar.png`.
+
+**Negative control:** the `.savebar` background removed (back to the 0.72 glass), then the Settings test run on all 4 projects → **red on 4 of 4**, including webkit-390:
+```
+Error: Save bar background rgba(17, 24, 42, 0.72) is solid
+Expected: >= 0.99
+Received:    0.72
+```
+Restored from the backup and checked with `cmp` (byte for byte). With the fix, `header.spec` was 16/16 green before the break.
+
+**Numbers:** `npx playwright test`, real Worker on 7303, after the restore:
+
+| Project | Passed | Failed | Skipped |
+|---|---|---|---|
+| chromium-390 | 25 | 0 | 0 |
+| chromium-1280 | 25 | 0 | 0 |
+| webkit-390 | 25 | 0 | 0 |
+| webkit-1280 | 25 | 0 | 0 |
+| **Total** | **100** | **0** | **0** (6.2 min) |
+
+**Screenshots looked at** (Settings, scrolled, 390, webkit and chromium): the Save bar is a solid dark band with the button on it. Nothing from the
+form reads through it: in the webkit shot the Opening hours rows stop at its top edge, and in the chromium shot Wednesday's row is cut off cleanly at it.
+Below the bar there is a thin strip of form content from its `bottom: 12px` gap. That strip is outside the bar and is how the floating bar was designed.
+
 ## Sticky header no longer shows scrolled content through it — DONE
 
 **Defect** (lead's demo shot, webkit-390): after Send request the page scrolls to Request sent, and the progress tiles' labels read
