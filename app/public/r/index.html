@@ -4,13 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a0f1c">
-  <title>Book a time | Book a Bay</title>
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Your booking | Book a Bay</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&display=swap">
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/book.js"></script>
+  <script type="module" src="/status.js"></script>
 </head>
 <body>
   <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -22,11 +24,10 @@
 
   <main class="page">
     <div class="shop-head">
-      <p class="eyebrow">Book a time at</p>
+      <p class="eyebrow">Your booking at</p>
       <h2><span data-shop-name></span> <span class="sample" data-sample hidden>SAMPLE</span></h2>
     </div>
-    <nav class="progress" aria-label="Booking steps"><ol id="progress"></ol></nav>
-    <section class="panel glass" id="booking" aria-live="polite"></section>
+    <div id="status" aria-live="polite"></div>
   </main>
 </body>
 </html>
