@@ -1,4 +1,4 @@
-// npm run negative:contract — negative controls for API.md clarifications 17 and 18 (bb2's cross-review findings).
+// npm run negative:contract — negative controls for API.md clarifications 17, 18, 19 and 21 (the cross-review findings).
 // For each break: start an untouched copy on 7305 and run the named API test (must pass), then start a copy with the one
 // literal break (must match exactly once) and run it again (that exact test must show ✖). Appends to negative-control.log.
 
@@ -22,6 +22,20 @@ const CONTROLS = [
     find: "const TOKEN = '([^/]*)'",
     replace: "const TOKEN = '([A-Za-z0-9_-]{16,128})' /* NEGATIVE CONTROL: old strict pattern */",
     test: 'every miss under /api/r/ is 404 with the booking text'
+  },
+  {
+    name: 'own-hold',
+    break: '/api/r/:token/slots counts the request\'s own hold again',
+    find: 'row.service_id, ownHold)',
+    replace: 'row.service_id, null /* NEGATIVE CONTROL: own hold counted */)',
+    test: "a time blocked only by the request's own hold is offered to that request"
+  },
+  {
+    name: 'pin-field',
+    break: 'the wrong-current-PIN 401 no longer carries field: current',
+    find: "'That PIN is not right.', { field: 'current' })",
+    replace: "'That PIN is not right.' /* NEGATIVE CONTROL: no field */)",
+    test: 'PIN change refusals: a wrong current PIN carries field current'
   }
 ]
 

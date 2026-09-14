@@ -410,3 +410,58 @@ header, how the success body is read, and how each refusal is read.
 Nothing in my Worker is wrong against the contract, so **no Worker change and no new control** from this review. Findings 1 and 2 need new
 routes, which is an API.md change and the lead's call. If adopted, I will build them with tests and a negative control. Finding 4's `field: "current"` is a
 one-line additive change, if the lead prefers it to bb2 matching the error text.
+
+---
+
+# M4: move pickers, PIN field, label limit (API.md clarifications 19–21, 2026-09-14)
+
+Rebased onto main first (d845346; my cross-review commit came along). Ports 7302, 7304 and 7305 only.
+
+## M4: what I built
+
+| Item | Status | Where |
+|---|---|---|
+| **19.** `GET /api/shop/days?exclude=<request id>` (Bearer): the `/api/days` shape, for the request's snapshot service, own hold free. No `exclude` gives `400 field: exclude`; an unknown id gives 404. | DONE | `worker/src/index.js` `shopDays` |
+| **19.** `GET /api/r/:token/days` and `GET /api/r/:token/slots?date=`: the `/api/days` and `/api/slots` shapes, snapshot service, own hold free. A miss is still the one booking 404 (clarification 18). A date out of the window gives `400 field: date`. | DONE | `customerDays`, `customerSlots` |
+| **19.** `/api/shop/slots` with `exclude` and no `service` (it already worked; now covered by a test). One `snapshotService(row)` helper feeds all four picker routes. | DONE | `shopSlots` |
+| `listDays` takes `exclude`, the same way `availableStarts` already did. Window, lead-time and cap rules are unchanged. | DONE | `worker/src/slots.js` |
+| **21.** A wrong current PIN on `PUT /api/shop/pin` gives `401 {"error":"That PIN is not right.","code":"unauthorized","field":"current"}`. A dead session is still `401 {"error":"Please sign in again.","code":"unauthorized"}`, with no field. | DONE | `changePin` |
+| **20.** Block label 1–40: the Worker already refused over 40. I added an assertion for a 41-character label (400 `field: label`) and a 40-character label accepted (201). | DONE | `worker/tests/api.test.mjs` |
+
+## M4: verified
+
+`npm test`: **unit 20 passed, 0 failed · API 36 passed, 0 failed, 0 skipped.** Race `winners=1`, status race `bad=0`, bays race `bad=0` (5 booking-first, 5 save-first).
+
+- **"move pickers use the request snapshot: an offline service can still be moved from shop and customer pickers"**
+  - Setup: create an oil change, then take Oil change offline.
+  - Customer `/api/days?service=oil` gives `400 field: service`.
+  - `/api/shop/days?exclude=` gives `{service: "oil", days: ×14}` with the exact day keys; Wed shows `available: 18`, and Sun has "Closed Sundays".
+  - `/api/r/:token/days` deep-equals the shop days.
+  - `/api/r/:token/slots?date=Wed` gives 18 slots, the first `{time: "08:00", label: "8:00 AM"}`, deep-equal to `/api/shop/slots?date=&exclude=` with no service.
+  - The repick itself gives 200.
+  - Refusals: `/api/r/nope/days` and `/api/r/nope/slots` give the booking 404 text; an out-of-window date gives 400 `date`; no `exclude` gives 400 `exclude`; an unknown id gives 404. The new shop route is also in the "no token → 401" list.
+- **"a time blocked only by the request's own hold is offered to that request"**
+  - Setup: bays 2–3 blocked at 9:30, the request on bay 1 at 9:30.
+  - `/api/slots` does not list 9:30; `/api/r/:token/slots` does.
+  - `/api/r/:token/days` Tue `available` is exactly the customer count + 1.
+  - Control: a repick to 9:30 gives 200.
+- **"PIN change refusals: a wrong current PIN carries field current; a dead session has none"**
+  - Both bodies deep-equal the contract.
+  - The dead session is made by signing out, then calling with the same token.
+
+## M4: negative controls (`npm run negative:contract`, now four; an unbroken copy passes each test first, full output in `worker/tests/negative-control.log`)
+
+| Control | Break | Result |
+|---|---|---|
+| own hold | `customerSlots`: `slotsResponse(…, row.service_id, ownHold)` → `…, null)` | **RED**: `✖ a time blocked only by the request's own hold is offered to that request`, `AssertionError: /api/r/:token/slots offers 9:30 back to its own booking`, `actual: false`, `expected: true`. |
+| PIN field | `changePin`: `'That PIN is not right.', { field: 'current' })` → without the field | **RED**: `✖ PIN change refusals: a wrong current PIN carries field current…`, `actual: { error: 'That PIN is not right.', code: 'unauthorized' }`, `expected: { …, field: 'current' }`. |
+| offer bays, token pattern (M3b) | as before | **RED** again on this tree, with the same output as M3b. |
+
+**Not given its own break:** the 41-character label assertion (clarification 20). It checks behaviour that already existed, and you asked only for the assertion.
+The same test also shows a 40-character label accepted, so an off-by-one in either direction would fail it. It has not been separately broken on purpose.
+
+## M4: for bb2
+
+Switch `shop.js:430` to `GET /api/shop/days?exclude=<id>` and `status.js:71/80` to `GET /api/r/:token/days` and `/api/r/:token/slots?date=`.
+On `PUT /api/shop/pin`, a 401 **with** `field: "current"` stays on the form; a 401 **without** a field means sign out. (Clarification 22, `pushed_at`,
+is already in every shop view.)

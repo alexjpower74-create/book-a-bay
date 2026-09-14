@@ -218,6 +218,7 @@ test('shop sign-in: wrong PIN is 401, shop routes without a valid token are 401'
     ['GET', '/api/shop/settings'], ['PUT', '/api/shop/settings'], ['PUT', '/api/shop/pin'], ['GET', `/api/shop/slots?service=oil&date=${TUE}`],
     ['POST', '/api/shop/blocks'], ['DELETE', '/api/shop/blocks/b_abc'], ['POST', '/api/shop/requests/r_abc/decline'],
     ['POST', '/api/shop/requests/r_abc/offer'], ['POST', '/api/shop/requests/r_abc/cancel'], ['POST', '/api/shop/requests/r_abc/push'],
+    ['GET', '/api/shop/days?exclude=r_abc'],
     ['GET', '/api/shop/export/shop-board?format=json']
   ]
   for (const [method, path] of shopRoutes) {
@@ -531,12 +532,16 @@ test('block-out removes times, refuses over a hold with conflicts, and can be de
   for (const [body, field] of [
     [{ date: TUE, time: '12:00', end: '13:00', bays: [4] }, 'bays'], [{ date: TUE, time: '12:00', end: '11:00', bays: [1] }, 'end'],
     [{ date: '2026-09-13', time: '12:00', end: '13:00', bays: [1] }, 'date'], [{ date: TUE, time: '12:10', end: '13:00', bays: [1] }, 'time'],
-    [{ date: TUE, time: '12:00', end: '13:00', bays: [1], label: '' }, 'label']
+    [{ date: TUE, time: '12:00', end: '13:00', bays: [1], label: '' }, 'label'],
+    [{ date: TUE, time: '12:00', end: '13:00', bays: [1], label: 'x'.repeat(41) }, 'label']
   ]) {
     const r = await api('POST', '/api/shop/blocks', { token, body })
     expectError(r, 400, 'bad_request', JSON.stringify(body))
     assert.equal(r.body.field, field)
   }
+  const forty = await api('POST', '/api/shop/blocks', { token, body: { date: THU, time: '12:00', end: '13:00', bays: [1], label: 'x'.repeat(40) } })
+  assert.equal(forty.status, 201, 'control: a 40-character label is accepted (API.md clarification 20)')
+  assert.equal(forty.body.block.label.length, 40)
 })
 
 test('settings: GET shape, PUT round trip, full validation with the field named', async () => {
@@ -906,4 +911,82 @@ test('every miss under /api/r/ is 404 with the booking text, whatever the token 
   }
   const real = await create('oil', TUE, '09:30')
   assert.equal((await api('GET', `/api/r/${real.token}`)).status, 200, 'control: a real token still opens its booking')
+})
+
+test('move pickers use the request snapshot: an offline service can still be moved from shop and customer pickers', async () => {
+  // API.md clarification 19.
+  await reset()
+  const token = await signin()
+  const a = await create('oil', TUE, '09:30')
+  const s = (await api('GET', '/api/shop/settings', { token })).body
+  const offline = structuredClone(s)
+  offline.services.find(x => x.id === 'oil').active = false
+  assert.equal((await api('PUT', '/api/shop/settings', { token, body: offline })).status, 200)
+
+  const refused = await api('GET', '/api/days?service=oil')
+  expectError(refused, 400, 'bad_request', 'the customer /api/days refuses an offline service')
+  assert.equal(refused.body.field, 'service')
+
+  const shopDays = await api('GET', `/api/shop/days?exclude=${a.id}`, { token })
+  assert.equal(shopDays.status, 200, shopDays.text)
+  assert.deepEqual(Object.keys(shopDays.body), ['service', 'days'])
+  assert.equal(shopDays.body.service, 'oil')
+  assert.equal(shopDays.body.days.length, 14)
+  for (const d of shopDays.body.days) assert.deepEqual(Object.keys(d), ['date', 'label', 'open', 'reason', 'available'])
+  assert.deepEqual(shopDays.body.days.find(d => d.date === WED), { date: WED, label: 'Wed Sep 16', open: true, reason: null, available: 18 })
+  assert.equal(shopDays.body.days.find(d => d.date === '2026-09-20').reason, 'Closed Sundays')
+
+  const customerDays = await api('GET', `/api/r/${a.token}/days`)
+  assert.equal(customerDays.status, 200, customerDays.text)
+  assert.deepEqual(customerDays.body, shopDays.body, 'customer and shop see the same days for the same request')
+
+  const customerSlots = await api('GET', `/api/r/${a.token}/slots?date=${WED}`)
+  assert.equal(customerSlots.status, 200, customerSlots.text)
+  assert.deepEqual(Object.keys(customerSlots.body), ['service', 'date', 'open', 'reason', 'slots'])
+  assert.equal(customerSlots.body.service, 'oil')
+  assert.equal(customerSlots.body.slots.length, 18)
+  assert.deepEqual(customerSlots.body.slots[0], { time: '08:00', label: '8:00 AM' })
+  const shopSlots = await api('GET', `/api/shop/slots?date=${WED}&exclude=${a.id}`, { token })
+  assert.deepEqual(shopSlots.body, customerSlots.body, '/api/shop/slots with exclude and no service gives the same times')
+  assert.equal((await api('POST', `/api/r/${a.token}/repick`, { body: { date: WED, time: '10:00' } })).status, 200, 'and the move itself goes through')
+
+  // Refusals on the new routes.
+  const bookingMiss = { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' }
+  for (const path of ['/api/r/nope/days', `/api/r/nope/slots?date=${WED}`]) assert.deepEqual((await api('GET', path)).body, bookingMiss, path)
+  const outside = await api('GET', `/api/r/${a.token}/slots?date=2026-10-30`)
+  expectError(outside, 400, 'bad_request')
+  assert.equal(outside.body.field, 'date')
+  const noExclude = await api('GET', '/api/shop/days', { token })
+  expectError(noExclude, 400, 'bad_request')
+  assert.equal(noExclude.body.field, 'exclude')
+  expectError(await api('GET', '/api/shop/days?exclude=r_nope123', { token }), 404, 'not_found')
+})
+
+test("a time blocked only by the request's own hold is offered to that request", async () => {
+  // API.md clarification 19. Bays 2 and 3 are blocked at 9:30 and the request holds bay 1, so 9:30 is full for everyone else.
+  await reset()
+  const token = await signin()
+  assert.equal((await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '09:30', end: '10:00', bays: [2, 3] } })).status, 201)
+  const a = await create('oil', TUE, '09:30')
+  assert.ok(!(await slotTimes('oil', TUE)).includes('09:30'), '/api/slots does not offer 9:30')
+  const own = await api('GET', `/api/r/${a.token}/slots?date=${TUE}`)
+  assert.ok(own.body.slots.some(x => x.time === '09:30'), '/api/r/:token/slots offers 9:30 back to its own booking')
+  const everyone = (await api('GET', '/api/days?service=oil')).body.days.find(d => d.date === TUE).available
+  const mine = (await api('GET', `/api/r/${a.token}/days`)).body.days.find(d => d.date === TUE).available
+  assert.equal(mine, everyone + 1, 'the day count also frees exactly the own start')
+  assert.equal((await api('POST', `/api/r/${a.token}/repick`, { body: { date: TUE, time: '09:30' } })).status, 200, 'control: repick agrees the time is free')
+})
+
+test('PIN change refusals: a wrong current PIN carries field current; a dead session has none', async () => {
+  // API.md clarification 21.
+  await reset()
+  const token = await signin()
+  const wrong = await api('PUT', '/api/shop/pin', { token, body: { current: '1111', next: '1357' } })
+  assert.equal(wrong.status, 401)
+  assert.deepEqual(wrong.body, { error: 'That PIN is not right.', code: 'unauthorized', field: 'current' })
+  assert.equal((await api('POST', '/api/shop/signout', { token })).status, 200)
+  const dead = await api('PUT', '/api/shop/pin', { token, body: { current: '2468', next: '1357' } })
+  assert.equal(dead.status, 401)
+  assert.deepEqual(dead.body, { error: 'Please sign in again.', code: 'unauthorized' })
+  assert.ok(!('field' in dead.body), 'a dead session names no field, so the app signs out')
 })

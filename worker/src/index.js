@@ -367,11 +367,31 @@ async function getShop (c) {
   })
 }
 
+async function daysResponse (c, settings, service, serviceId, exclude) {
+  const holds = await loadHolds(c.db, shopToday(settings, c.now))
+  return json(200, { service: serviceId, days: listDays({ settings, service, now: c.now, holds, exclude }) })
+}
+
 async function getDays (c) {
   const settings = await loadSettings(c.db)
   const service = activeService(settings, c.url.searchParams.get('service'))
-  const holds = await loadHolds(c.db, shopToday(settings, c.now))
-  return json(200, { service: service.id, days: listDays({ settings, service, now: c.now, holds }) })
+  return daysResponse(c, settings, service, service.id, null)
+}
+
+/** A request's own snapshot of its service: moving a request never depends on the service still being offered. */
+const snapshotService = row => ({ minutes: row.minutes, bays_needed: row.bays_needed })
+
+// Pickers for moving an existing request (API.md clarification 19): the request's snapshot, its own hold treated as free.
+async function customerDays (c) {
+  const row = await rowByToken(c.db, c.params[0])
+  return daysResponse(c, await loadSettings(c.db), snapshotService(row), row.service_id, `r:${row.id}`)
+}
+
+async function customerSlots (c) {
+  const row = await rowByToken(c.db, c.params[0])
+  // The customer's current booking is not in its own way. tests/negative-contract.mjs passes null here instead.
+  const ownHold = `r:${row.id}`
+  return slotsResponse(c, await loadSettings(c.db), snapshotService(row), row.service_id, ownHold)
 }
 
 async function slotsResponse (c, settings, service, serviceId, exclude) {
@@ -629,7 +649,8 @@ async function changePin (c) {
   const settings = await loadSettings(c.db)
   if (!(await verifyPin(body.current, settings.pin))) {
     await recordAttempt(c.db, 'signin', c.ip, c.now)
-    throw new HttpError(401, 'unauthorized', 'That PIN is not right.')
+    // field: current tells the app this is the PIN form's own refusal, not a dead session (API.md clarification 21).
+    throw new HttpError(401, 'unauthorized', 'That PIN is not right.', { field: 'current' })
   }
   if (typeof body.next !== 'string' || !/^\d{4,8}$/.test(body.next)) throw badRequest('next', 'Your new PIN should be 4 to 8 digits.')
   const upsert = "INSERT INTO settings (key, value) VALUES ('pin', ?1) ON CONFLICT (key) DO UPDATE SET value = excluded.value"
@@ -731,13 +752,20 @@ async function offerTime (c) {
   return json(200, shopView(await rowById(db, row.id), r.settings))
 }
 
+async function shopDays (c) {
+  const exclude = c.url.searchParams.get('exclude')
+  if (!exclude) throw badRequest('exclude', 'Pick the booking to move.')
+  const row = await rowById(c.db, exclude)
+  return daysResponse(c, await loadSettings(c.db), snapshotService(row), row.service_id, `r:${row.id}`)
+}
+
 async function shopSlots (c) {
   const settings = await loadSettings(c.db)
   const exclude = c.url.searchParams.get('exclude')
   if (exclude) {
     // The request's own snapshot of its service, so a renamed or deactivated service can still be moved.
     const row = await rowById(c.db, exclude)
-    return slotsResponse(c, settings, { minutes: row.minutes, bays_needed: row.bays_needed }, row.service_id, `r:${row.id}`)
+    return slotsResponse(c, settings, snapshotService(row), row.service_id, `r:${row.id}`)
   }
   const service = activeService(settings, c.url.searchParams.get('service'))
   return slotsResponse(c, settings, service, service.id, null)
@@ -1087,10 +1115,13 @@ const routes = [
   ['POST', new RegExp(`^/api/r/${TOKEN}/repick$`), repickTime],
   ['POST', new RegExp(`^/api/r/${TOKEN}/cancel$`), customerCancel],
   ['GET', new RegExp(`^/api/r/${TOKEN}/ics$`), getIcs],
+  ['GET', new RegExp(`^/api/r/${TOKEN}/days$`), customerDays],
+  ['GET', new RegExp(`^/api/r/${TOKEN}/slots$`), customerSlots],
   ['POST', /^\/api\/shop\/signin$/, signin],
   ['POST', /^\/api\/shop\/signout$/, signout, { shop: true }],
   ['PUT', /^\/api\/shop\/pin$/, changePin, { shop: true }],
   ['GET', /^\/api\/shop\/board$/, shopBoard, { shop: true }],
+  ['GET', /^\/api\/shop\/days$/, shopDays, { shop: true }],
   ['GET', /^\/api\/shop\/slots$/, shopSlots, { shop: true }],
   ['POST', new RegExp(`^/api/shop/requests/${REQUEST_ID}/confirm$`), confirmRequest, { shop: true }],
   ['POST', new RegExp(`^/api/shop/requests/${REQUEST_ID}/decline$`), declineRequest, { shop: true }],
