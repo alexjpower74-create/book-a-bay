@@ -61,21 +61,23 @@ limit, the PIN-change 401 ambiguity, and `pushed_at` not shown. bb1 built the ro
 - **Shop Board holds one car per bay per hourly row** (DECISIONS.md 14); the second car in that hour is refused with Shop Board's message.
 - Pending requests created in the same millisecond order by id.
 
-## Final QA — `85d970d` (main after every merge), 2026-09-14 ~04:40
+## Final QA — `687f5dc` (main after every merge), 2026-09-14 ~05:15
 
-Pinned QA worktree, port 7309, one run of everything, nothing re-run to get green.
+Pinned QA worktree, port 7309, one run of everything, nothing re-run to get green. (An earlier full run at `85d970d` was also
+all green, 140/0/0; the lead's curated screenshots then found the see-through phone header, bb2 fixed it with a check that can fail,
+and this run at `687f5dc` is the one the pushed code carries.)
 
 | Suite | Passed | Failed | Skipped |
 |---|---|---|---|
 | Worker unit (slot maths, Shop Board mapping, fake Shop Board contract) | 20 | 0 | 0 |
 | Worker API against `wrangler dev --local` (TEST_MODE) | 36 | 0 | 0 |
-| Playwright chromium-390 (touch) | 21 | 0 | 0 |
-| Playwright chromium-1280 | 21 | 0 | 0 |
-| Playwright webkit-390 (iPhone 14) | 21 | 0 | 0 |
-| Playwright webkit-1280 | 21 | 0 | 0 |
-| **Total** | **140** | **0** | **0** |
+| Playwright chromium-390 (touch) | 24 | 0 | 0 |
+| Playwright chromium-1280 | 24 | 0 | 0 |
+| Playwright webkit-390 (iPhone 14) | 24 | 0 | 0 |
+| Playwright webkit-1280 | 24 | 0 | 0 |
+| **Total** | **152** | **0** | **0** |
 
-Playwright took 5.5 minutes, 0 flaky. The 21 tests per project cover:
+Playwright took 6.2 minutes, 0 flaky. The 24 tests per project cover:
 - **Customer:** the full journey (customer books → shop confirms → status page shows Confirmed without a reload) and the .ics file.
 - **Race:** two customers racing for one slot.
 - **Moving a booking:** offer → accept, and move from the request's own snapshot after its service goes offline.
@@ -85,13 +87,15 @@ Playwright took 5.5 minutes, 0 flaky. The 21 tests per project cover:
 - **Board behaviour:** the poll never redraws an open picker, and the phone layout (board within two screens, one-row header).
 - **Page checks:** closed Sunday, SAMPLE on all three screens, 44 px legible buttons that hit-test to themselves, and the name field visible
   below the header after an empty Send.
+- **Sticky header:** solid after scrolling on the customer, status and shop pages (≥ 0.99 opaque, the header itself under its centre).
 
 **Negative controls:** `npm run negative` ran all eleven breaks and every one was **RED as expected** (race 8 winners, status race,
 bays-in-flight with a guarded control, closures, bays, mapping, lenient fake, offer bays, token pattern, own-hold slots, PIN field).
 
 **Lead's own browser control in the same run:** in the QA worktree `app/public/ui.js` had `confirmed: { label: 'Confirmed'` turned into
 `'Requested'` (exactly one occurrence). `journey.spec.mjs --project chromium-390` then went **red**:
-`Error: expect(locator).toHaveText(expected) failed · Expected: "Confirmed" · Received: "Requested"` (1 failed, 1 passed). The file was
+`Error: expect(locator).toHaveText(expected) failed · Expected: "Confirmed" · Received: "Requested"` (1 failed, 1 passed; same result
+at `85d970d` and `687f5dc`). The file was
 restored from a copy and `git diff` on it is empty.
 
 **The slices' own controls** (each broken, seen red, restored; red output in their reports):
@@ -99,4 +103,5 @@ restored from a copy and `git diff` on it is empty.
 - the board poll redrawing an open picker (red on all 4 projects), and the export without the token;
 - every text group open (board 1,985 px down), and a customer picker back on `/api/slots`;
 - the name field under the header (plain `focus()`, red on webkit-390, where the bug lived);
+- the see-through header (old glass background, and a 0.94 tint: both 12 of 12 red; the unfixed CSS read 0.72);
 - the clock guard.
