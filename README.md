@@ -8,7 +8,7 @@ time and sends a request from their phone; the shop confirms, declines or offers
 ## Run it on this computer
 
 ```sh
-cd "~/Projects/Book a Bay"
+cd ~/"Projects/Book a Bay"
 npm run demo            # first run seeds a SAMPLE week; later runs keep your bookings
 npm run demo -- --fresh # start again from the SAMPLE week
 ```
