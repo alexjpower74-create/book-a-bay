@@ -199,8 +199,8 @@ export function availableStarts ({ settings, service, date, now, holds, exclude 
   return out
 }
 
-/** GET /api/days: every date in the window with its open state and how many starts are left. */
-export function listDays ({ settings, service, now, holds }) {
+/** GET /api/days: every date in the window with its open state and how many starts are left. `exclude` frees one owner's hold. */
+export function listDays ({ settings, service, now, holds, exclude = null }) {
   return windowDates(settings, now).map(date => {
     const info = dayInfo(settings, date)
     return {
@@ -208,7 +208,7 @@ export function listDays ({ settings, service, now, holds }) {
       label: dayLabel(date),
       open: info.open,
       reason: info.reason,
-      available: info.open ? availableStarts({ settings, service, date, now, holds }).length : 0
+      available: info.open ? availableStarts({ settings, service, date, now, holds, exclude }).length : 0
     }
   })
 }

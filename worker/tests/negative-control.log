@@ -845,3 +845,156 @@ test at tests/api.test.mjs:893:1
     diff: 'simple'
   }
 verdict: RED as expected. "every miss under /api/r/ is 404 with the booking text" fails when the router's old token pattern {16,128} is back.
+
+=== negative:contract offer-bays 2026-09-14T06:04:23.135Z (HEAD f8a162c, working tree) ===
+control (unbroken copy on 7305): "shop view: an offered request carries the bays its offer holds" passes
+break: src/index.js:     bays: parseArr(row.bays),⏎    offer: offerOf(row, { bays: true }),  ->      bays: parseArr(row.bays),⏎    offer: offerOf(row) /* NEGATIVE CONTROL: shop offer without bays */,
+✖ shop view: an offered request carries the bays its offer holds; the customer view does not (311.66142ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 403.756761
+
+✖ failing tests:
+
+test at tests/api.test.mjs:877:1
+✖ shop view: an offered request carries the bays its offer holds; the customer view does not (311.66142ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  -   bays: [
+  -     2,
+  -     3
+  -   ],
+      date: '2026-09-16',
+      end: '12:00',
+      label: 'Wed Sep 16, 10:00 AM',
+      time: '10:00'
+    }
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/contract-offer-bays/tests/api.test.mjs:889:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { date: '2026-09-16', time: '10:00', end: '12:00', label: 'Wed Sep 16, 10:00 AM' },
+    expected: { date: '2026-09-16', time: '10:00', end: '12:00', label: 'Wed Sep 16, 10:00 AM', bays: [ 2, 3 ] },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "shop view: an offered request carries the bays its offer holds" fails when the shop view offer no longer carries bays.
+
+=== negative:contract token-pattern 2026-09-14T06:04:33.265Z (HEAD f8a162c, working tree) ===
+control (unbroken copy on 7305): "every miss under /api/r/ is 404 with the booking text" passes
+break: src/index.js: const TOKEN = '([^/]*)'  ->  const TOKEN = '([A-Za-z0-9_-]{16,128})' /* NEGATIVE CONTROL: old strict pattern */
+✖ every miss under /api/r/ is 404 with the booking text, whatever the token looks like (77.552785ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 203.418148
+
+✖ failing tests:
+
+test at tests/api.test.mjs:898:1
+✖ every miss under /api/r/ is 404 with the booking text, whatever the token looks like (77.552785ms)
+  AssertionError [ERR_ASSERTION]: GET /api/r/nope
+  + actual - expected
+  
+    {
+      code: 'not_found',
+  +   error: 'Not found.'
+  -   error: 'We could not find that booking. Please check the link the shop sent you.'
+    }
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/contract-token-pattern/tests/api.test.mjs:910:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { error: 'Not found.', code: 'not_found' },
+    expected: { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "every miss under /api/r/ is 404 with the booking text" fails when the router's old token pattern {16,128} is back.
+
+=== negative:contract own-hold 2026-09-14T06:04:42.914Z (HEAD f8a162c, working tree) ===
+control (unbroken copy on 7305): "a time blocked only by the request's own hold is offered to that request" passes
+break: src/index.js: row.service_id, ownHold)  ->  row.service_id, null /* NEGATIVE CONTROL: own hold counted */)
+✖ a time blocked only by the request's own hold is offered to that request (175.450711ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 264.519126
+
+✖ failing tests:
+
+test at tests/api.test.mjs:965:1
+✖ a time blocked only by the request's own hold is offered to that request (175.450711ms)
+  AssertionError [ERR_ASSERTION]: /api/r/:token/slots offers 9:30 back to its own booking
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/contract-own-hold/tests/api.test.mjs:973:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+verdict: RED as expected. "a time blocked only by the request's own hold is offered to that request" fails when /api/r/:token/slots counts the request's own hold again.
+
+=== negative:contract pin-field 2026-09-14T06:04:53.117Z (HEAD f8a162c, working tree) ===
+control (unbroken copy on 7305): "PIN change refusals: a wrong current PIN carries field current" passes
+break: src/index.js: 'That PIN is not right.', { field: 'current' })  ->  'That PIN is not right.' /* NEGATIVE CONTROL: no field */)
+✖ PIN change refusals: a wrong current PIN carries field current; a dead session has none (140.609085ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 262.625274
+
+✖ failing tests:
+
+test at tests/api.test.mjs:980:1
+✖ PIN change refusals: a wrong current PIN carries field current; a dead session has none (140.609085ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      code: 'unauthorized',
+      error: 'That PIN is not right.',
+  -   field: 'current'
+    }
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/contract-pin-field/tests/api.test.mjs:986:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { error: 'That PIN is not right.', code: 'unauthorized' },
+    expected: { error: 'That PIN is not right.', code: 'unauthorized', field: 'current' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "PIN change refusals: a wrong current PIN carries field current" fails when the wrong-current-PIN 401 no longer carries field: current.
