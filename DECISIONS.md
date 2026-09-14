@@ -98,9 +98,8 @@ Alexander was asleep for this build; every real call is written here with its re
 
 ## 2026-09-14, lead (teardown)
 
-27. **`rig down` is not used on this project; teardown is by tab id.** Reading Rig's herdr driver before running it: `killSession()` closes
-    every tab in the workspace whose label matches `/^[a-z]\d+$/i` other than the lead's own, not just this plan's slice ids. Tonight's
-    workspace holds other crews' slice tabs (e.g. Grant Match NL's `gm…` tabs), so `rig down` here would close agents mid-work, and
-    another lead's `rig down` would close `bb1`/`bb2`. So the lead closes only the tabs labelled `bb1` and `bb2` (ids checked at the
-    time) and removes the worktrees with `git worktree remove`. The Rig fix (filter slice tabs by the plan's own ids) belongs to the Rig
-    project and was reported to Onyx rather than made here.
+27. **Teardown is by tab id plus `git worktree remove`, not `rig down`.** Rig's herdr driver picks slice tabs with `/^[a-z]\d+$/i`: one
+    letter, then digits. Two-letter slice ids such as `bb1` never match, so `rig down` would close no tabs at all here (and could never
+    close another crew's `nb1`). The lead first misread the regex and told Onyx it would close other crews' tabs; Onyx corrected it.
+    The procedure stays the same: close only the tabs labelled `bb1` and `bb2` (ids checked at the time) and remove the worktrees.
+    It is now LEAD-RULES §6 for every lead. Onyx will change Rig to filter by the plan's own slice ids after the sprint.
