@@ -213,12 +213,13 @@ export function listDays ({ settings, service, now, holds }) {
   })
 }
 
-/** `next`: up to `count` available starts chronologically after (date, start_min): rest of that day, then later days. */
-export function nextSlots ({ settings, service, date, start_min, now, holds, count = 3 }) {
+/** `next`: up to `count` available starts chronologically after (date, start_min): rest of that day, then later days.
+ *  `exclude` ("r:<id>") treats that request's own hold as free, for moving a booking. */
+export function nextSlots ({ settings, service, date, start_min, now, holds, exclude = null, count = 3 }) {
   const out = []
   for (const d of windowDates(settings, now)) {
     if (d < date) continue
-    for (const slot of availableStarts({ settings, service, date: d, now, holds })) {
+    for (const slot of availableStarts({ settings, service, date: d, now, holds, exclude })) {
       if (d === date && slot.start_min <= start_min) continue
       out.push({ date: d, time: slot.time, label: slotLabel(d, slot.start_min) })
       if (out.length === count) return out

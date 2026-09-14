@@ -3,18 +3,13 @@
 // (separate awaited statements, 25 ms of honest "latency" between check and insert), adds a migration that drops
 // the UNIQUE indexes on cells and starts, starts that copy on 7305, and runs only the race test against it.
 // Exits 0 only if the race test fails with more than one winner. Output is appended to tests/negative-control.log.
-// The shipped code has no switch for this: the break exists only in the throwaway copy.
 
-import { spawnSync } from 'node:child_process'
-import { appendFileSync, cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { join } from 'node:path'
+import { writeFileSync } from 'node:fs'
+import { copyWorker, createLog, patchFile, runNode } from './negative-lib.mjs'
 import { startWorker } from './run.mjs'
 
-const root = resolve(fileURLToPath(import.meta.url), '..', '..')
-const copy = join(root, '.negative', 'race')
 const PORT = 7305
-const logFile = join(root, 'tests', 'negative-control.log')
 
 const UNGUARDED = `// RACE-GUARD:BEGIN (NEGATIVE CONTROL: unguarded read-check-then-insert)
     {
@@ -31,60 +26,30 @@ const UNGUARDED = `// RACE-GUARD:BEGIN (NEGATIVE CONTROL: unguarded read-check-t
     }
     // RACE-GUARD:END`
 
-function replaceOnce (text, pattern, replacement, what) {
-  const matches = text.match(new RegExp(pattern.source, 'g')) || []
-  if (matches.length !== 1) throw new Error(`${what}: expected exactly one match, found ${matches.length}`)
-  return text.replace(pattern, () => replacement)
-}
-
-const lines = []
-const say = s => { console.log(s); lines.push(s) }
-const sha = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim()
-say(`\n=== negative:race ${new Date().toISOString()} (HEAD ${sha}, working tree) ===`)
-
+const log = createLog('negative:race')
 let verdictOk = false
 let worker = null
 try {
-  rmSync(copy, { recursive: true, force: true })
-  mkdirSync(copy, { recursive: true })
-  // Node refuses to cpSync a directory into its own subdirectory, so copy the top-level entries one by one.
-  for (const entry of readdirSync(root)) {
-    if (/^(\.state-|\.logs|\.negative|\.wrangler|node_modules)/.test(entry)) continue
-    cpSync(join(root, entry), join(copy, entry), { recursive: true })
-  }
-
-  const tomlPath = join(copy, 'wrangler.toml')
-  writeFileSync(tomlPath, replaceOnce(readFileSync(tomlPath, 'utf8'), /directory = "\.\.\/app\/public"/,
-    `directory = ${JSON.stringify(resolve(root, '..', 'app', 'public'))}`, 'wrangler.toml assets directory'))
-
-  const indexPath = join(copy, 'src', 'index.js')
-  const guarded = readFileSync(indexPath, 'utf8')
-  writeFileSync(indexPath, replaceOnce(guarded, /\/\/ RACE-GUARD:BEGIN[\s\S]*?\/\/ RACE-GUARD:END/, UNGUARDED, 'RACE-GUARD region'))
-
-  writeFileSync(join(copy, 'migrations', '0003_negative_drop_unique.sql'),
+  const copy = copyWorker('race')
+  patchFile(copy, 'src/index.js', /\/\/ RACE-GUARD:BEGIN[\s\S]*?\/\/ RACE-GUARD:END/, UNGUARDED, 'RACE-GUARD region')
+  writeFileSync(join(copy, 'migrations', '0099_negative_drop_unique.sql'),
     '-- NEGATIVE CONTROL ONLY (never shipped): no UNIQUE guard on held cells or numbered starts.\nDROP INDEX cells_unique;\nDROP INDEX starts_unique;\n')
+  log.say('break: RACE-GUARD region -> unguarded SELECT check, await scheduler.wait(25), INSERTs one by one; UNIQUE indexes cells_unique and starts_unique dropped')
 
-  say('break: RACE-GUARD region -> unguarded SELECT check, await scheduler.wait(25), INSERTs one by one; UNIQUE indexes cells_unique and starts_unique dropped')
   worker = await startWorker({ dir: copy, port: PORT, log: join(copy, '.logs', `wrangler-${PORT}.log`) })
-  say(`started the broken copy on ${worker.base}`)
+  log.say(`started the broken copy on ${worker.base}`)
+  const run = runNode(copy, ['--test', '--test-name-pattern', '^the race', 'tests/api.test.mjs'], { BASE: worker.base })
+  log.say(run.output.trimEnd())
 
-  const run = spawnSync(process.execPath, ['--test', '--test-name-pattern', '^the race', 'tests/api.test.mjs'], {
-    cwd: copy, encoding: 'utf8', env: { ...process.env, BASE: worker.base }
-  })
-  const output = `${run.stdout}${run.stderr}`
-  say(output.trimEnd())
-
-  const winners = Number((/RACE winners=(\d+)/.exec(output) || [])[1] ?? NaN)
-  const raceFailed = run.status !== 0 && /✖ the race/.test(output)
-  verdictOk = raceFailed && winners > 1
-  say(verdictOk
+  const winners = Number((/RACE winners=(\d+)/.exec(run.output) || [])[1] ?? NaN)
+  verdictOk = run.status !== 0 && /✖ the race/.test(run.output) && winners > 1
+  log.say(verdictOk
     ? `verdict: RED as expected. Without the batch + UNIQUE guard ${winners} customers all got a 201 for the one free place. The race test measures the guard.`
     : `verdict: NOT RED as required (test exit ${run.status}, winners ${winners}). This negative control did not show a double booking.`)
 } catch (e) {
-  say(`verdict: ERROR ${e.stack || e.message}`)
+  log.say(`verdict: ERROR ${e.stack || e.message}`)
 } finally {
   if (worker) await worker.stop()
-  // The log is committed: never write this machine's folder names into it.
-  appendFileSync(logFile, lines.join('\n').replaceAll(pathToFileURL(resolve(root, '..')).href, 'file://<repo>').replaceAll(resolve(root, '..'), '<repo>') + '\n')
+  log.flush()
 }
 process.exit(verdictOk ? 0 : 1)

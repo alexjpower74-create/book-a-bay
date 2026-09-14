@@ -124,3 +124,244 @@ test at tests/slots.test.mjs:94:1
     diff: 'simple'
   }
 verdict: RED as expected. "the bay-count change" fails when pickBays ignores settings.bays (always looks at 10 bays).
+
+=== negative:slots a-closures 2026-09-14T05:37:30.269Z (HEAD 167f6f8, working tree) ===
+control (unbroken copy): "a closure date is closed with its reason" passes
+break: src/slots.js: const closure = (settings.closures || []).find(c => c.date === date)  ->  const closure = undefined /* NEGATIVE CONTROL (a): closures ignored */
+✖ a closure date is closed with its reason (2.93997ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.576225
+
+✖ failing tests:
+
+test at tests/slots.test.mjs:76:1
+✖ a closure date is closed with its reason (2.93997ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   hours: {
+  +     close: '17:00',
+  +     open: '08:00'
+  +   },
+  +   open: true,
+  +   reason: null
+  -   hours: null,
+  -   open: false,
+  -   reason: 'Staff training (sample)'
+    }
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative:slots-a-closures/tests/slots.test.mjs:79:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { open: true, reason: null, hours: { open: '08:00', close: '17:00' } },
+    expected: { open: false, reason: 'Staff training (sample)', hours: null },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "a closure date is closed with its reason" fails when dayInfo ignores settings.closures.
+
+=== negative:slots b-bays 2026-09-14T05:37:30.489Z (HEAD 167f6f8, working tree) ===
+control (unbroken copy): "the bay-count change" passes
+break: src/slots.js: for (let bay = 1; bay <= bayCount; bay++)  ->  for (let bay = 1; bay <= 10 /* NEGATIVE CONTROL (b): bay count ignored */; bay++)
+✖ the bay-count change: capacity follows settings.bays, not the bays that happen to hold time (15.071327ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 76.917399
+
+✖ failing tests:
+
+test at tests/slots.test.mjs:94:1
+✖ the bay-count change: capacity follows settings.bays, not the bays that happen to hold time (15.071327ms)
+  AssertionError [ERR_ASSERTION]: bays: 2 -> 10:00 is gone
+  + actual - expected
+  
+  + {
+  +   bays: [
+  +     3
+  +   ],
+  +   end_min: 630,
+  +   label: '10:00 AM',
+  +   start_min: 600,
+  +   time: '10:00'
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative:slots-b-bays/tests/slots.test.mjs:97:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { time: '10:00', label: '10:00 AM', start_min: 600, end_min: 630, bays: [ 3 ] },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "the bay-count change" fails when pickBays ignores settings.bays (always looks at 10 bays).
+
+=== negative:shopboard d-mapping-row 2026-09-14T05:37:50.032Z (HEAD 167f6f8, working tree) ===
+control (unbroken copy): "the mapping table" passes
+break: src/shopboard.js: ['12:30 PM', 750]  ->  ['12:30 PM', 766 /* NEGATIVE CONTROL (d) */]
+✖ the mapping table: start time to Shop Board row, minutes to est. time (1.391115ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 74.678243
+
+✖ failing tests:
+
+test at tests/shopboard.test.mjs:31:1
+✖ the mapping table: start time to Shop Board row, minutes to est. time (1.391115ms)
+  AssertionError [ERR_ASSERTION]: 12:45 -> 12:30 PM
+  + actual - expected
+  
+  + '12:00 PM'
+  - '12:30 PM'
+        ^
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative:shopboard-d-mapping-row/tests/shopboard.test.mjs:34:43)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: '12:00 PM',
+    expected: '12:30 PM',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "the mapping table" fails when the 12:30 PM row starts at 12:46, so 12:45 maps to '12:00 PM'.
+
+=== negative:shopboard e-fake-slot 2026-09-14T05:37:50.269Z (HEAD 167f6f8, working tree) ===
+control (unbroken copy): "contract: the fake refuses what Shop Board refuses" passes
+break: tests/fake-shop-board.mjs: if (field === 'slot' && !isSlot(value))  ->  if (field === 'slot' && false /* NEGATIVE CONTROL (e) */)
+✖ contract: the fake refuses what Shop Board refuses (validatePatch at 25c6faa) (26.341282ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 122.184099
+
+✖ failing tests:
+
+test at tests/shopboard.test.mjs:70:1
+✖ contract: the fake refuses what Shop Board refuses (validatePatch at 25c6faa) (26.341282ms)
+  AssertionError [ERR_ASSERTION]: bab-okay-01: {"date":"2026-09-15","slot":"9:30","bay":"1","name":"Pat Sample (sample)","estTime":"30m"}
+  
+  200 !== 400
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/negative:shopboard-e-fake-slot/tests/shopboard.test.mjs:89:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "contract: the fake refuses what Shop Board refuses" fails when the fake Shop Board accepts any slot.
+
+=== negative:race 2026-09-14T05:37:53.382Z (HEAD 167f6f8, working tree) ===
+break: RACE-GUARD region -> unguarded SELECT check, await scheduler.wait(25), INSERTs one by one; UNIQUE indexes cells_unique and starts_unique dropped
+started the broken copy on http://127.0.0.1:7305
+RACE winners=8 losers=0 statuses=201,201,201,201,201,201,201,201
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (298.594709ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 358.178585
+
+✖ failing tests:
+
+test at tests/api.test.mjs:273:1
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (298.594709ms)
+  AssertionError [ERR_ASSERTION]: exactly one 201, got 8
+  
+  8 !== 1
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/race/tests/api.test.mjs:287:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. Without the batch + UNIQUE guard 8 customers all got a 201 for the one free place. The race test measures the guard.
+
+=== negative:status 2026-09-14T05:37:57.146Z (HEAD 167f6f8, working tree) ===
+break: src/index.js: const IF_APPLIED = ' AND (SELECT rev FROM requests WHERE id = ?2) = ?3'  ->  const IF_APPLIED = ' AND ?2 IS NOT NULL AND ?3 IS NOT NULL' /* NEGATIVE CONTROL: release is unconditional */
+started the broken copy on http://127.0.0.1:7305
+STATUS-RACE outcomes=confirmed:0c0s,declined:0c0s,confirmed:0c0s,declined:0c0s,confirmed:0c0s,declined:0c0s,confirmed:0c0s,declined:0c0s,confirmed:0c0s,declined:0c0s bad=5
+✖ Confirm and Decline at once, 10 times over: holds are present if and only if the final status holds time (667.655774ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 729.715004
+
+✖ failing tests:
+
+test at tests/api.test.mjs:705:1
+✖ Confirm and Decline at once, 10 times over: holds are present if and only if the final status holds time (667.655774ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'run 0: confirmed with 0 cells, 0 starts',
+  +   'run 2: confirmed with 0 cells, 0 starts',
+  +   'run 4: confirmed with 0 cells, 0 starts',
+  +   'run 6: confirmed with 0 cells, 0 starts',
+  +   'run 8: confirmed with 0 cells, 0 starts'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/status/tests/api.test.mjs:732:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run 0: confirmed with 0 cells, 0 starts', 'run 2: confirmed with 0 cells, 0 starts', 'run 4: confirmed with 0 cells, 0 starts', 'run 6: confirmed with 0 cells, 0 starts', 'run 8: confirmed with 0 cells, 0 starts' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. With an unconditional release, a Decline that lost to Confirm still deleted the holds: the booking reads confirmed while its bay time is free for someone else.
