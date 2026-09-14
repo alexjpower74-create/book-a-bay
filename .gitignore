@@ -9,3 +9,4 @@ playwright-report/
 app/tests/results/
 app/tests/.state-*/
 worker/.state-*/
+app/tests/shots/
