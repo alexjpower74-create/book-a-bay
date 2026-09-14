@@ -365,3 +365,400 @@ test at tests/api.test.mjs:705:1
     diff: 'simple'
   }
 verdict: RED as expected. With an unconditional release, a Decline that lost to Confirm still deleted the holds: the booking reads confirmed while its bay time is free for someone else.
+
+=== negative:bays 2026-09-14T05:45:50.463Z (HEAD d5e3d86, working tree) ===
+break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+runs: 10
+started the broken copy on http://127.0.0.1:7305
+BAYS-RACE outcomes=save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✔ lowering bays while bookings are in flight: never a hold above the stored bay count (1463.015281ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1546.137098
+verdict: NOT RED as required (test exit 0, outcomes save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3).
+
+=== negative:race 2026-09-14T05:45:56.253Z (HEAD d5e3d86, working tree) ===
+break: RACE-GUARD region -> unguarded SELECT check, await scheduler.wait(25), INSERTs one by one; UNIQUE indexes cells_unique and starts_unique dropped
+started the broken copy on http://127.0.0.1:7305
+RACE winners=8 losers=0 statuses=201,201,201,201,201,201,201,201
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (367.857937ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 440.931285
+
+✖ failing tests:
+
+test at tests/api.test.mjs:273:1
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (367.857937ms)
+  AssertionError [ERR_ASSERTION]: exactly one 201, got 8
+  
+  8 !== 1
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/race/tests/api.test.mjs:287:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. Without the batch + UNIQUE guard 8 customers all got a 201 for the one free place. The race test measures the guard.
+
+=== negative:bays 2026-09-14T05:46:30.434Z (HEAD d5e3d86, working tree) ===
+break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+runs: 10
+started the broken copy on http://127.0.0.1:7305
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✔ lowering bays while bookings are in flight: never a hold above the stored bay count (1684.208206ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1760.084016
+verdict: NOT RED as required (test exit 0, outcomes save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3).
+
+=== negative:bays 2026-09-14T05:46:58.731Z (HEAD d5e3d86, working tree) ===
+break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+extra: await scheduler.wait(25) between the booking's read and its batch (broken copy only)
+runs: 10
+started the broken copy on http://127.0.0.1:7305
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=6
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (1467.887841ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1536.515236
+
+✖ failing tests:
+
+test at tests/api.test.mjs:822:1
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (1467.887841ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'run 2: stored bays 2 but a booking holds bay 3',
+  +   'run 2: save 200 but bays 2, 1 winners',
+  +   'run 3: stored bays 2 but a booking holds bay 3',
+  +   'run 3: save 200 but bays 2, 1 winners',
+  +   'run 4: stored bays 2 but a booking holds bay 3',
+  +   'run 4: save 200 but bays 2, 1 winners'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/bays/tests/api.test.mjs:865:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run 2: stored bays 2 but a booking holds bay 3', 'run 2: save 200 but bays 2, 1 winners', 'run 3: stored bays 2 but a booking holds bay 3', 'run 3: save 200 but bays 2, 1 winners', 'run 4: stored bays 2 but a booking holds bay 3', 'run 4: save 200 but bays 2, 1 winners' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. Without the bay guard 3 of 10 runs saved bays=2 and still let a booking hold bay 3.
+
+=== negative:bays 2026-09-14T05:47:42.737Z (HEAD d5e3d86, working tree) ===
+runs: 10 per copy
+[bays-control] guard kept
+[bays-control] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (2473.865381ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2575.140814
+
+✖ failing tests:
+
+test at tests/api.test.mjs:822:1
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (2473.865381ms)
+  AssertionError [ERR_ASSERTION]: at least one run where a booking won
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/bays-control/tests/api.test.mjs:868:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+control: DID NOT PASS (exit 1); the added latency alone breaks the test, so a red below would prove nothing.
+[bays] break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+[bays] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=10
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (2917.207982ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3006.772643
+
+✖ failing tests:
+
+test at tests/api.test.mjs:822:1
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (2917.207982ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'run 0: stored bays 2 but a booking holds bay 3',
+  +   'run 0: save 200 but bays 2, 1 winners',
+  +   'run 1: stored bays 2 but a booking holds bay 3',
+  +   'run 1: save 200 but bays 2, 1 winners',
+  +   'run 2: stored bays 2 but a booking holds bay 3',
+  +   'run 2: save 200 but bays 2, 1 winners',
+  +   'run 3: stored bays 2 but a booking holds bay 3',
+  +   'run 3: save 200 but bays 2, 1 winners',
+  +   'run 4: stored bays 2 but a booking holds bay 3',
+  +   'run 4: save 200 but bays 2, 1 winners'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/bays/tests/api.test.mjs:865:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run 0: stored bays 2 but a booking holds bay 3', 'run 0: save 200 but bays 2, 1 winners', 'run 1: stored bays 2 but a booking holds bay 3', 'run 1: save 200 but bays 2, 1 winners', 'run 2: stored bays 2 but a booking holds bay 3', 'run 2: save 200 but bays 2, 1 winners', 'run 3: stored bays 2 but a booking holds bay 3', 'run 3: save 200 but bays 2, 1 winners', 'run 4: stored bays 2 but a booking holds bay 3', 'run 4: save 200 but bays 2, 1 winners' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: NOT RED as required (control failed, broken exit 1, doubled runs 5).
+
+=== negative:bays 2026-09-14T05:48:33.382Z (HEAD d5e3d86, working tree) ===
+runs: 10 per copy, send stagger step 9 ms, added latency 25 ms
+[bays-control] guard kept
+[bays-control] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✔ lowering bays while bookings are in flight: never a hold above the stored bay count (2407.784672ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2500.032396
+control: PASSES with the same latency and the guard kept (2 booking-first, 8 save-first runs).
+[bays] break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+[bays] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=2
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (2701.003726ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2796.490007
+
+✖ failing tests:
+
+test at tests/api.test.mjs:822:1
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (2701.003726ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'run 4: stored bays 2 but a booking holds bay 3',
+  +   'run 4: save 200 but bays 2, 1 winners'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/bays/tests/api.test.mjs:866:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run 4: stored bays 2 but a booking holds bay 3', 'run 4: save 200 but bays 2, 1 winners' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. With the same latency, the guarded copy passed and the unguarded copy let 1 of 10 runs save bays=2 while a booking held bay 3.
+
+=== negative:bays 2026-09-14T05:49:14.604Z (HEAD d5e3d86, working tree) ===
+runs: 20 per copy, send stagger step 9 ms, added latency 25 ms
+[bays-control] guard kept
+[bays-control] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✔ lowering bays while bookings are in flight: never a hold above the stored bay count (3168.52833ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3230.294764
+control: PASSES with the same latency and the guard kept (5 booking-first, 15 save-first runs).
+[bays] break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+[bays] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✔ lowering bays while bookings are in flight: never a hold above the stored bay count (3136.307013ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3198.676298
+verdict: NOT RED as required (control passed, broken exit 0, doubled runs 0).
+
+=== negative:bays 2026-09-14T05:50:04.941Z (HEAD d5e3d86, working tree) ===
+runs: 20 per copy, send stagger (run - 20) * 2 ms (bookings 40 ms ahead down to 2 ms ahead), added latency 25 ms
+[bays-control] guard kept
+[bays-control] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✔ lowering bays while bookings are in flight: never a hold above the stored bay count (3333.923378ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3405.307935
+control: PASSES with the same latency and the guard kept (16 booking-first, 4 save-first runs).
+[bays] break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+[bays] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3 bad=8
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (3135.580975ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3200.190225
+
+✖ failing tests:
+
+test at tests/api.test.mjs:822:1
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (3135.580975ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'run 16: stored bays 2 but a booking holds bay 3',
+  +   'run 16: save 200 but bays 2, 1 winners',
+  +   'run 17: stored bays 2 but a booking holds bay 3',
+  +   'run 17: save 200 but bays 2, 1 winners',
+  +   'run 18: stored bays 2 but a booking holds bay 3',
+  +   'run 18: save 200 but bays 2, 1 winners',
+  +   'run 19: stored bays 2 but a booking holds bay 3',
+  +   'run 19: save 200 but bays 2, 1 winners'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/bays/tests/api.test.mjs:866:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run 16: stored bays 2 but a booking holds bay 3', 'run 16: save 200 but bays 2, 1 winners', 'run 17: stored bays 2 but a booking holds bay 3', 'run 17: save 200 but bays 2, 1 winners', 'run 18: stored bays 2 but a booking holds bay 3', 'run 18: save 200 but bays 2, 1 winners', 'run 19: stored bays 2 but a booking holds bay 3', 'run 19: save 200 but bays 2, 1 winners' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. With the same latency, the guarded copy passed and the unguarded copy let 4 of 20 runs save bays=2 while a booking held bay 3.
+
+=== negative:bays 2026-09-14T05:50:37.069Z (HEAD d5e3d86, working tree) ===
+runs: 20 per copy, send stagger (run - 20) * 2 ms (bookings 40 ms ahead down to 2 ms ahead), added latency 25 ms
+[bays-control] guard kept
+[bays-control] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3,save200:bays2:0w:nobay3 bad=0
+✔ lowering bays while bookings are in flight: never a hold above the stored bay count (3407.518581ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3474.16269
+control: PASSES with the same latency and the guard kept (15 booking-first, 5 save-first runs).
+[bays] break: src/index.js: const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"  ->  const BAY_GUARD_SQL = "SELECT ?1 AS unguarded" /* NEGATIVE CONTROL: bay guard removed */
+[bays] extra: await scheduler.wait(25) between the booking's read and its batch (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save409:bays3:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3,save200:bays2:1w:bay3 bad=10
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (3317.567939ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3386.410764
+
+✖ failing tests:
+
+test at tests/api.test.mjs:822:1
+✖ lowering bays while bookings are in flight: never a hold above the stored bay count (3317.567939ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+  + [
+  +   'run 7: stored bays 2 but a booking holds bay 3',
+  +   'run 7: save 200 but bays 2, 1 winners',
+  +   'run 16: stored bays 2 but a booking holds bay 3',
+  +   'run 16: save 200 but bays 2, 1 winners',
+  +   'run 17: stored bays 2 but a booking holds bay 3',
+  +   'run 17: save 200 but bays 2, 1 winners',
+  +   'run 18: stored bays 2 but a booking holds bay 3',
+  +   'run 18: save 200 but bays 2, 1 winners',
+  +   'run 19: stored bays 2 but a booking holds bay 3',
+  +   'run 19: save 200 but bays 2, 1 winners'
+  + ]
+  - []
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/bays/tests/api.test.mjs:866:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run 7: stored bays 2 but a booking holds bay 3', 'run 7: save 200 but bays 2, 1 winners', 'run 16: stored bays 2 but a booking holds bay 3', 'run 16: save 200 but bays 2, 1 winners', 'run 17: stored bays 2 but a booking holds bay 3', 'run 17: save 200 but bays 2, 1 winners', 'run 18: stored bays 2 but a booking holds bay 3', 'run 18: save 200 but bays 2, 1 winners', 'run 19: stored bays 2 but a booking holds bay 3', 'run 19: save 200 but bays 2, 1 winners' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. With the same latency, the guarded copy passed and the unguarded copy let 5 of 20 runs save bays=2 while a booking held bay 3.

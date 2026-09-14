@@ -209,11 +209,11 @@ and a log scrubbed of this machine's folder names. `npm run negative` runs all f
 
 ## M2: left undone / known gaps
 
-- **Lowering bays vs a booking in flight:** the settings batch refuses if a cell sits on a removed bay at commit time. A new booking
+- DONE in M3 (guard statement in every cell-writing batch, API.md clarification 16): **Lowering bays vs a booking in flight:** the settings batch refuses if a cell sits on a removed bay at commit time. A new booking
   that read the old bay count *before* the save, and commits *after* it, could still land on the removed bay. The window is milliseconds
   and it takes a shop edit, but it is not closed. Closing it means adding a `bay <= bays` guard statement to the booking batch, which
   would sit inside the RACE-GUARD region. I left that for your call rather than change the region you QA'd.
-- The settings race guard's rollback was checked by hand against local D1, not by an automated race test.
+- DONE in M3 (the bays-in-flight test drives the settings guard's 409 side 5 times per `npm test`): The settings race guard's rollback was checked by hand against local D1, not by an automated race test.
 - `npm test` against an **already running** Worker skips starting its own. The push tests then need that Worker to have been started with
   `SHOP_BOARD_URL=http://127.0.0.1:7304`.
 - Pending order uses `created_at`; two real requests in the same millisecond fall back to id order.
@@ -223,3 +223,90 @@ and a log scrubbed of this machine's folder names. `npm run negative` runs all f
 - **bb2:** decision 8 (export download needs a header, so fetch + blob); push 501 text is `Shop Board is not connected yet. Use "Download for Shop Board" instead.`;
   offer refusals are `busy` (show `conflicts`) or `taken` (show `next`); settings refusals name `field` (`hours`, `closures`, `services` are whole-section fields).
 - **Lead:** decisions 1, 2 and the bays-in-flight gap.
+
+---
+
+# M3: bays in flight (API.md clarification 16, 2026-09-14)
+
+Rebased onto main first (d5e3d86). Ports 7302, 7304 and 7305 only. `app/` untouched. Playwright not run.
+
+## M3: what I built
+
+| Item | Status | Where |
+|---|---|---|
+| `BAY_GUARD_SQL`: `SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)`, bound to the highest bay the batch writes | DONE | `worker/src/index.js` |
+| The guard in the **booking batch** (`stmts`, built just before the RACE-GUARD region; the region's catch now treats it like a UNIQUE loss) | DONE | `postRequest` |
+| The guard in the **moveHold batch** (offer, repick) | DONE | `moveHold` |
+| The guard in the **block-out batch** too (not asked for, same gap: it writes cells on shop-chosen bays); a refusal there is `400 field: bays` "The number of bays just changed. Please pick the bays again." | DONE | `createBlock` |
+| On a guard refusal: **re-read settings and holds and retry**, exactly like a UNIQUE loss (`lostHold`), ending in `409 taken` + `next` computed with the fresh settings | DONE | `postRequest`, `moveHold` |
+| RACE-GUARD markers kept; `negative:race` still replaces the region and still goes red (8 winners, re-run on this tree) | DONE | `worker/tests/negative-race.mjs` |
+| Test: 6 concurrent bookings plus `PUT settings bays: 2`, 10 runs | DONE | `worker/tests/api.test.mjs` |
+| `npm run negative:bays` | DONE | `worker/tests/negative-bays.mjs` |
+
+Both writers are now transactions that read what the other writes. The settings save checks `cells` on removed bays at commit (M2),
+and every cell-writing batch checks `settings.bays` at commit (M3). D1 serialises the two transactions, so whichever commits second sees
+the first. Either the save wins and the booking retries into `taken`, or the booking wins and the save answers `bays_in_use`. Never both.
+
+## M3: verified (working tree; the lead's `rig qa` numbers are the ones that count)
+
+`npm test`: **unit 20 passed, 0 failed · API 31 passed, 0 failed, 0 skipped.** Race still `winners=1`, status race still `bad=0`.
+
+**"lowering bays while bookings are in flight: never a hold above the stored bay count"**
+- **Setup, each run:** bays 1–2 are blocked Tue 11:00–11:30, so only bay 3 can take an 11:00 oil change. Six `POST /api/requests` for it (distinct `X-Test-IP`) and `PUT /api/shop/settings { bays: 2 }` go out together. Reset between runs.
+- **Timing:** the only thing varied is client-side send timing. The save goes 15 ms after the bookings in run 0, down to 12 ms before them in run 9 (`(run - 5) * 3` ms), so both orderings really happen.
+- **Checked after every run:**
+  - no winner holds a cell on a bay above the stored count
+  - save 200 ⇒ stored bays 2 and no winner
+  - save 409 ⇒ `bays_in_use`, stored bays 3, exactly one winner, on bay 3
+  - every other booking is `409 taken`
+- **Coverage:** the test also fails unless both endings occurred.
+- **Result:** `BAYS-RACE outcomes=save409:bays3:1w:bay3 ×5, save200:bays2:0w:nobay3 ×5 bad=0`.
+- **How I got there:** my first version fired the save first in every run and saw only `save200` endings, both guarded and unguarded. It passed while measuring one side. That is why the stagger and the "both endings" check exist.
+
+## M3: negative control (`npm run negative:bays`, full output in `worker/tests/negative-control.log`)
+
+**Break:** in a copy, only `BAY_GUARD_SQL` is replaced, by `"SELECT ?1 AS unguarded"`. It keeps its one binding and checks nothing, so the guard disappears from all three batches at once. The settings save keeps its own M2 guard.
+
+**What I did, in order. All runs are in the log; the four NOT RED verdicts (runs 1, 2, 4, 6) are kept on purpose.**
+
+| # | Setup | Result |
+|---|---|---|
+| 1 | Guard removed, no added latency, save fired first, 10 runs | **NOT RED**: every run `save200:bays2:0w`. The booking's read→batch gap is a few ms locally, and the save always committed first. |
+| 2 | Guard removed, no added latency, the test's stagger (above), 10 runs | **NOT RED**: 5 × `save409:bays3:1w`, 5 × `save200:bays2:0w`. The windows never overlapped. |
+| 3 | As brief allowed: **`await scheduler.wait(25)` between the booking's read and its batch, in the broken copy only** (after the plan is built, just before the RACE-GUARD region), 10 runs | **RED**: 3 of 10 runs `save200:bays2:1w:bay3`. But this had no guarded control yet. |
+| 4 | Added a **control copy** with the same 25 ms wait and the guard kept, which must pass. 10 runs, 3 ms stagger | **NOT RED by the runner's rule**: the control kept the invariant (`bad=0`), but with 25 ms of latency and at most 15 ms of stagger no booking ever came first, so the test's "both endings" check failed. Broken copy: 5 doubled runs. |
+| 5 | Stagger 9 ms, 10 runs | **RED**: control passed (2 booking-first, 8 save-first); broken copy 1 of 10 doubled. Too thin for a QA re-run. |
+| 6 | Stagger 9 ms, 20 runs | **NOT RED**: 0 doubled. Most of the extra runs put the save 50–126 ms ahead, where no booking has read the old count yet. The sweep was aimed badly. |
+| 7 | **Final:** a sweep over the window where a double booking can happen. 20 runs, 2 ms apart, bookings going out 40 ms down to 2 ms ahead of the save (`(run - 20) * 2`), 25 ms latency, same timing in both copies | **RED**, below. |
+
+**Final red output (run 7):**
+```
+runs: 20 per copy, send stagger (run - 20) * 2 ms (bookings 40 ms ahead down to 2 ms ahead), added latency 25 ms
+[bays-control] guard kept · extra: await scheduler.wait(25) between the booking's read and its batch
+BAYS-RACE outcomes=save409:bays3:1w:bay3 ×16, save200:bays2:0w:nobay3 ×4 bad=0
+✔ lowering bays while bookings are in flight
+control: PASSES with the same latency and the guard kept (16 booking-first, 4 save-first runs).
+[bays] break: BAY_GUARD_SQL -> "SELECT ?1 AS unguarded" · extra: await scheduler.wait(25) (this copy only)
+BAYS-RACE outcomes=save409:bays3:1w:bay3 ×16, save200:bays2:1w:bay3 ×4 bad=8
+✖ lowering bays while bookings are in flight
+  'run 16: stored bays 2 but a booking holds bay 3'   (and 17, 18, 19)
+verdict: RED as expected. With the same latency, the guarded copy passed and the unguarded copy let 4 of 20 runs save bays=2 while a booking held bay 3.
+```
+**Confirmation re-run** of the same default, before commit: RED again. The control passed (15 booking-first, 5 save-first) and the broken copy doubled 5 of 20 (runs 7, 16, 17, 18, 19).
+Log tally at commit: 14 RED, 4 NOT RED (the M3 attempts above), 0 ERROR.
+
+Runs 16–19 have identical send timing in both copies. With the guard, the save won and nobody holds bay 3. Without it, the save
+won **and** a booking holds bay 3. The only difference between the two copies is the one guard line.
+
+`npm run negative:bays` now does exactly run 7 by default (20 runs, step 2, offset 20, 25 ms). Overrides: `BAYS_RACE_RUNS`,
+`BAYS_RACE_STAGGER_STEP_MS`, `BAYS_RACE_STAGGER_OFFSET`, `NEGATIVE_BAYS_WAIT_MS`. The wait exists only in the copies:
+`grep "NEGATIVE CONTROL" worker/src` finds nothing.
+
+## M3: notes for the lead
+
+- **Honest limit of the control:** without added latency, the unguarded code did not double book in 20 local runs. Local D1 is too fast
+  for the booking's read→batch gap to overlap a save. The red needs 25 ms of stand-in latency, recorded above. In production, D1
+  round trips make that gap real, which is why the guard is there.
+- **Stagger settings are test knobs, not product switches.** They only change when the test's client sends, in `api.test.mjs`.
+- **The block-out guard** was not in the brief. It closes the same gap for a walk-in block on a bay being removed. Veto if you'd rather it wasn't there.
+- `npm run negative` now also runs `negative:bays`: all five control scripts, six breaks.

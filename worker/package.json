@@ -11,6 +11,7 @@
     "negative:status": "node tests/negative-status.mjs",
     "negative:slots": "node tests/negative-slots.mjs",
     "negative:shopboard": "node tests/negative-shopboard.mjs",
-    "negative": "node tests/negative-slots.mjs && node tests/negative-shopboard.mjs && node tests/negative-race.mjs && node tests/negative-status.mjs"
+    "negative:bays": "node tests/negative-bays.mjs",
+    "negative": "node tests/negative-slots.mjs && node tests/negative-shopboard.mjs && node tests/negative-race.mjs && node tests/negative-status.mjs && node tests/negative-bays.mjs"
   }
 }
