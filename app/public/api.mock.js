@@ -299,12 +299,31 @@ export async function handle(method, path, body = {}) {
   }
 
   // The real router only matches tokens of 16-128 url-safe characters; anything else is a plain "Not found.".
-  const m = p.match(/^\/api\/r\/([A-Za-z0-9_-]{16,128})(?:\/(accept|repick|cancel|ics))?$/)
-  if (!m) return NOT_FOUND
+  // Every miss under /api/r/* reads the same, whatever the token looks like (clarification 18).
+  const noBooking = res(404, { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' })
+  if (!p.startsWith('/api/r/')) return NOT_FOUND
+  const m = p.match(/^\/api\/r\/([A-Za-z0-9_-]{16,128})(?:\/(accept|repick|cancel|ics|days|slots))?$/)
+  if (!m) return noBooking
   const r = store.requests.find((x) => x.token === m[1])
-  if (!r) return res(404, { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' })
+  if (!r) return noBooking
   const action = m[2]
   if (method === 'GET' && !action) return res(200, view(r))
+  // Pickers for moving this booking: its own service snapshot, its own hold free (clarification 19).
+  if (method === 'GET' && action === 'days') {
+    const days = Array.from({ length: SETTINGS.window_days }, (_, i) => {
+      const date = addDays(TODAY, i)
+      const info = dayInfo(date)
+      return { date, label: dayLabel(date), open: info.open, reason: info.reason, available: info.open ? slotsFor(store, r.service, date, r.id).length : 0 }
+    })
+    return res(200, { service: r.service.id, days })
+  }
+  if (method === 'GET' && action === 'slots') {
+    const date = url.searchParams.get('date')
+    if (!isDate(date)) return bad('date', 'Please pick a day.')
+    if (!inWindow(date)) return bad('date', 'That day is not open for booking online.')
+    const info = dayInfo(date)
+    return res(200, { service: r.service.id, date, open: info.open, reason: info.reason, slots: slotsFor(store, r.service, date, r.id).map(({ time, label }) => ({ time, label })) })
+  }
   if (method === 'GET' && action === 'ics') {
     if (r.status !== 'confirmed') return badState('The calendar file is ready once the shop confirms.')
     return res(200, 'BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n')

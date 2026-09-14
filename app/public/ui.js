@@ -32,6 +32,19 @@ export function addDays(date, n) {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
 }
 
+// An instant the API recorded (e.g. pushed_at) as a shop-local label, "Mon Sep 14, 9:12 AM". This formats a given time;
+// it never reads the browser's clock.
+export function instantLabel(iso, timeZone = 'America/St_Johns') {
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms)) return ''
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+      .formatToParts(ms)
+      .map((p) => [p.type, p.value]),
+  )
+  return `${parts.weekday} ${parts.month} ${parts.day}, ${parts.hour}:${parts.minute} ${parts.dayPeriod}`
+}
+
 // Message texts carry the bare status path (API.md clarification 4): show and copy them with the full link.
 export function fullLink(text, statusUrl) {
   const s = String(text ?? '')

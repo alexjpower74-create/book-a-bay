@@ -4,7 +4,7 @@
 // Dates come from the board response (`today`, `from`), never the browser clock. The board polls every 15 s and never
 // redraws while a picker, a note, a menu or the block-out form is open.
 import { api, session, SIGNED_OUT } from '/api.js'
-import { esc, duration, band, clock, dayChips, timeButtons, showShop, copyText, STATUS, icon, addDays, toMin, hhmm, fullLink } from '/ui.js'
+import { esc, duration, band, clock, dayChips, timeButtons, showShop, copyText, STATUS, icon, addDays, toMin, hhmm, fullLink, instantLabel } from '/ui.js'
 import { mountSettings } from '/shop-settings.js'
 
 const POLL_MS = 15000
@@ -195,6 +195,7 @@ function requestCard(r, ctx) {
     ${r.status === 'offered' && r.offer ? `<p class="offered">Offered <b>${esc(r.offer.label)}</b>. Waiting on the customer.</p>` : ''}
     ${c.note ? `<p class="note">${esc(c.note)}</p>` : ''}
     ${r.shop_note ? `<p class="meta shop-note-line">Your note: ${esc(r.shop_note)}</p>` : ''}
+    ${r.status === 'confirmed' && r.pushed_at ? `<p class="meta pushed" data-pushed>Sent to Shop Board ${esc(instantLabel(r.pushed_at))}</p>` : ''}
     ${msg ? (msg.kind === 'ok' ? `<div class="okmsg" role="status">${esc(msg.text)}</div>` : alertBox(msg.text)) : ''}
     ${acts.length ? `<div class="actions">${acts.join('')}</div>` : ''}
     ${open === 'decline' || open === 'cancel' ? notePanel(r, open) : ''}
@@ -448,7 +449,7 @@ async function simple(fn, id, { ok, closeMenu = false } = {}) {
 function loadOfferDays() {
   const mine = ++offerSeq
   const o = b.offer
-  api.days(o.service).then(
+  api.shopDays(o.id).then(
     (r) => { if (mine === offerSeq && b.offer === o) { o.days = r.days; renderBoard() } },
     (e) => { if (mine === offerSeq && b.offer === o) { o.error = e.message; renderBoard() } },
   )

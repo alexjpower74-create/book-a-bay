@@ -60,7 +60,8 @@ async function call(method, path, body) {
   const r = await send(method, path, body)
   if (r.status >= 200 && r.status < 300) return r.data
   // A dead session anywhere on the shop side signs the shop out; a wrong current PIN on the PIN form does not.
-  if (r.status === 401 && isShop(path) && path !== '/api/shop/pin') {
+  // Only the PIN form's own refusal names field: current (clarification 21); every other 401 is a session that ended.
+  if (r.status === 401 && isShop(path) && !(path === '/api/shop/pin' && r.data?.field === 'current')) {
     session.clear()
     window.dispatchEvent(new CustomEvent(SIGNED_OUT, { detail: r.data?.error || '' }))
   }
@@ -81,6 +82,9 @@ export const api = {
   accept: (token) => call('POST', `/api/r/${q(token)}/accept`, {}),
   repick: (token, date, time) => call('POST', `/api/r/${q(token)}/repick`, { date, time }),
   cancel: (token) => call('POST', `/api/r/${q(token)}/cancel`, {}),
+  // Moving an existing booking: its own service snapshot, its own hold free (clarification 19).
+  pickDays: (token) => call('GET', `/api/r/${q(token)}/days`),
+  pickSlots: (token, date) => call('GET', `/api/r/${q(token)}/slots?date=${q(date)}`),
   // shop
   signin: (pin) => call('POST', '/api/shop/signin', { pin }),
   signout: () => call('POST', '/api/shop/signout', {}),
@@ -90,6 +94,7 @@ export const api = {
   offer: (id, date, time, note) => call('POST', `${req(id)}/offer`, { date, time, ...(note ? { note } : {}) }),
   cancelBooking: (id, note) => call('POST', `${req(id)}/cancel`, note ? { note } : {}),
   push: (id) => call('POST', `${req(id)}/push`, {}),
+  shopDays: (exclude) => call('GET', `/api/shop/days?exclude=${q(exclude)}`),
   shopSlots: (service, date, exclude) => call('GET', `/api/shop/slots?service=${q(service)}&date=${q(date)}&exclude=${q(exclude)}`),
   addBlock: (block) => call('POST', '/api/shop/blocks', block),
   removeBlock: (id) => call('DELETE', `/api/shop/blocks/${q(id)}`),

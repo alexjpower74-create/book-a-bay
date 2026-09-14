@@ -132,6 +132,52 @@ received/confirmed/declined, offered lists offered; text holds the bare `/r/?t=`
   `FAIL journey: locator.waitFor: Timeout 6000ms exceeded.` (390 and 1280: the pill never says Confirmed after the shop confirms),
   `83 passed, 2 failed`. Restored; the full real run is green again (above).
 
+## M4 follow-up — API.md clarifications 19–22 in the app — DONE
+
+Rebased on main (bb1 M4 merged: `/api/r/:token/days`, `/api/r/:token/slots`, `/api/shop/days`, `field: current` on the PIN 401).
+
+### Numbers: `npx playwright test`, real Worker on 7303, final run after the control was restored
+
+| Project | Passed | Failed | Skipped |
+|---|---|---|---|
+| chromium-390 | 20 | 0 | 0 |
+| chromium-1280 | 20 | 0 | 0 |
+| webkit-390 | 20 | 0 | 0 |
+| webkit-1280 | 20 | 0 | 0 |
+| **Total** | **80** | **0** | **0** (6.0 min) |
+
+The 3 new tests per project: `move` (clarification 19), and `session` × 2 (clarifications 21 and 22). `move` was also run with
+`--repeat-each 3`: 12/12 passed.
+
+### What changed
+1. **Clarification 19.** The customer "Pick another time" picker (`status.js`) now uses `GET /api/r/:token/days` and
+   `GET /api/r/:token/slots?date=`. The shop "Offer another time" day list (`shop.js`) uses `GET /api/shop/days?exclude=<id>`, and its times already came from
+   `/api/shop/slots?exclude=`. `api.mock.js` has the same token routes, plus clarification 18's single booking 404.
+   - **Test** `move.spec`: a 1-bay shop with 1 booking per start, and an oil change at Tue 10:00. So a time held by the request is blocked for everyone else.
+     - The shop's picker shows the request's own 10:00. The shop offers Wed 2:00 PM, and the customer's picker shows that 2:00 PM (held only by the offer).
+     - The shop then unticks "Bookable online" for Oil change in Settings and saves. The customer page no longer lists Oil change.
+     - The shop offers a different time (Thu 9:00 AM) from the board, and the customer picks another time (Fri 8:00 AM) and is Requested at it.
+   - **Negative control:** `status.js` pointed back at `api.slots(v.req.service.id, p.date)` → **red** (chromium-390, webkit-1280):
+     `Error: the time held only by this booking is offered to it · Locator: locator('.picker button.time[data-time="14:00"]') · Expected: visible · Error: element(s) not found`
+     (`move.spec.mjs:46`, the own-hold step, before Oil change goes offline). Restored (`cmp`), full suite green.
+   - **Found while building the test:** on chromium the first version tapped a day chip while the picker was drawing its days, and the chip was detached ("Element is not attached").
+     The test now waits for all 14 chips and for the chosen day before going on. That is a test timing fix; nothing changed in the app.
+2. **Clarification 20.** The block-out label input is `maxlength="40"`. It already was on this base (fixed in M2b, `shop.js:389`).
+3. **Clarification 21.** `api.js` signs out on every shop 401 except `PUT /api/shop/pin` answering `field: "current"`.
+   - **Test** `session.spec`: sign in, open Settings, end that session through the API (`POST /api/shop/signout` with the page's token), then submit Change PIN
+     with the right current PIN. The response is 401 with no `field`, the page is back on sign-in showing the API's text, and the token is gone.
+     The wrong-current-PIN case (the page stays on the form, "That PIN is not right.") is still covered by `shop.spec`.
+4. **Clarification 22.** A confirmed item with `pushed_at` shows "Sent to Shop Board Mon Sep 14, 9:12 AM" in its card. `ui.js instantLabel()`
+   formats the given instant in America/St_Johns with `Intl` and never reads the browser clock (`guard-clock` passes).
+   - **Test** `session.spec`: the e2e Worker has no Shop Board to push to (its 501 is tested in `shop.spec`), so this one test adds
+     `pushed_at: 2026-09-14T11:42:00Z` to the real board response with `page.route`. Everything else on the page is the Worker's answer. The item
+     menu then reads "Sent to Shop Board Mon Sep 14, 9:12 AM". A real push round trip would need a fake Shop Board on a port outside this slice's three; the lead's QA did that at 7306.
+5. **(Optional) Services refusal:** a `field: services` refusal already lands in the Services section, and the page scrolls it to the centre
+   (`shop-settings.js`, the scroll to `[data-error]` after save). No extra code was needed, and there is no separate test.
+
+### For bb1
+Nothing failing: all new routes and the PIN 401 behaved as clarifications 19–22 say.
+
 ## M2b — every shop screen on the real M2 Worker, 0 skipped — DONE
 
 Rebased on main (bb1 M2 + M3 merged; API.md clarifications 8–18). `needsRoute` and every call to it are deleted (DECISIONS 19);
