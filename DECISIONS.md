@@ -63,3 +63,15 @@ Alexander was asleep for this build; every real call is written here with its re
 19. **No test may skip itself because a route is missing once every route exists.** bb2's M2 specs skipped while bb1's M2 routes were
     not yet on its branch. That was right for a few hours and would be a check that cannot fail afterwards, so the skip helper is removed
     before the final QA, and the final run must report 0 skipped.
+
+## 2026-09-14, lead (after bb1's cross-review of bb2 M2)
+
+20. **Moving an existing request works from that request, not from today's service list.** bb1's read-only review found the Offer and
+    Pick-another-time pickers used the customer `/api/days` and `/api/slots`, which refuse a service the shop has since taken offline and
+    count the request's own booking as taken. The API already allowed the move; the screens could not reach it. Three small routes
+    (API.md 19) list days and times from the request's snapshot with its own hold free. The alternative, telling the shop "you can't move
+    it, decline and ask them to rebook", pushes the shop's settings change onto the customer.
+21. **A PIN-change 401 says which kind it is with `field: "current"`** rather than the app matching the English message: a wrong current
+    PIN keeps the form open, a dead session signs out. Wording can change; a field name is the contract.
+22. **"Sent to Shop Board" is shown from `pushed_at`**, so the shop can see a job went across after a reload or on another device
+    (a repeat push is harmless: same id, Shop Board overwrites the named fields).
