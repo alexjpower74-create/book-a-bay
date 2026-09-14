@@ -75,3 +75,15 @@ Alexander was asleep for this build; every real call is written here with its re
     PIN keeps the form open, a dead session signs out. Wording can change; a field name is the contract.
 22. **"Sent to Shop Board" is shown from `pushed_at`**, so the shop can see a job went across after a reload or on another device
     (a repeat push is harmless: same id, Shop Board overwrites the named fields).
+
+## 2026-09-14, lead (the app's test exceptions, reviewed)
+
+23. **`tap()` scrolls a target out from under the sticky header before its hit-test.** Playwright calls a button "in view" when the header
+    covers it; a person would scroll first. The `elementFromPoint` check at the tap point stays the gate, and the overlay control still
+    goes red. Because the scroll would hide the one regression that parks a field under the header (bb2's M1 WebKit bug), a dedicated
+    no-scroll check guards that case, with its own negative control.
+24. **Native `<select>` values are set with `selectOption`**, the one exception to real taps: a native dropdown has no drawn options to tap.
+    Every button, chip, field and link is still driven by a real touch or click after a hit-test.
+25. **One Playwright test injects `pushed_at` into the board response** to check "Sent to Shop Board <time>" is drawn, because the test
+    Worker has no Shop Board to push to. The real push was proven end to end by the lead against a local copy of Shop Board
+    (DECISIONS.md 13) and by bb1's contract test against the transcribed fake.
