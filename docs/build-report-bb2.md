@@ -132,4 +132,105 @@ received/confirmed/declined, offered lists offered; text holds the bare `/r/?t=`
   `FAIL journey: locator.waitFor: Timeout 6000ms exceeded.` (390 and 1280: the pill never says Confirmed after the shop confirms),
   `83 passed, 2 failed`. Restored; the full real run is green again (above).
 
-## M2 — in progress
+## M2 — shop side and the Playwright suite — DONE (six tests waiting on bb1 M2 routes)
+
+### What I built
+- **Lead's changes.**
+  - (a) `band()` follows Shop Board's `bandOf`: ≤ 60 min short, ≤ 180 mid, longer long.
+  - (b) Send request was never disabled. `days.spec` now asserts it is enabled, has opacity 1, and measures the contrast of every gradient stop.
+    Shop Board's `#6366f1 → #8b5cf6` measured 4.47 : 1 and 4.2 : 1 against white, so the primary gradient is now `#4f46e5 → #7c3aed`
+    (6.3 and 5.7 : 1), and the selected day and time chips got the same darker treatment.
+  - (c) `git rm -r --cached app/tests/shots` is in this commit; the files stay on disk.
+  - (d) Every message `text` is shown and copied with `location.origin + status_url` (`fullLink` in `ui.js`).
+- **`api.js`:** every shop route in API.md.
+  - Bearer token from `localStorage` `book-a-bay:shop-token`.
+  - A 401 on any shop route except `PUT /api/shop/pin` clears the token and returns to sign-in with the API's text.
+  - The export fetches with the token and saves the file.
+- **`shop/index.html` + `shop.js` + `shop.css`:**
+  - PIN sign-in and Sign out; the header has Board / Settings; shop name and SAMPLE badge.
+  - **Waiting for you** on top: a card per pending request (customer, phone, vehicle, service + duration, time, bay, offered time, note).
+    - Requested: Confirm / Offer another time / Decline. Offered: Offer a different time / Decline.
+    - Decline takes an optional note. Offer opens an inline day picker, with times from `/api/shop/slots?exclude=<id>`, and an optional note.
+    - A "Copy text" button for each `messages` entry says "Copied".
+    - After an action the request moves to **Just done** with its new texts, so the shop can copy the text it is about to send.
+  - **Today / Week** board with day/week navigation from the API's `from`/`today`.
+    - Today: one column per bay on the 30-minute grid; items are blocks spanning their time in their status colour, and blocks are hatched.
+      At < 720 px the bays become a Shop Board-style segmented control with counts.
+    - Week: 7 day columns (one list on narrow screens), and tapping a day header opens that day.
+    - Tapping an item opens its details under the board: the same card; confirmed jobs get "Send to Shop Board" (the API's 501/502 text shown
+      as is) and "Cancel booking"; blocks get "Remove this block".
+  - **Block out time** form: day, from/to on 15-minute marks, label (default Walk-in), All bays or chosen bays. A `busy` 409 lists its conflicts.
+  - **Download for Shop Board** JSON / CSV for the range on screen.
+  - Polls every 15 s and on `visibilitychange`, but skips the redraw while a picker, note, item menu or the block form is open, or an action is in flight.
+- **`shop-settings.js`:**
+  - Booking rules: shop name, bays, start step, lead time, bookings per start, window.
+  - Hours per weekday with Closed toggles.
+  - Closed days: add / remove.
+  - Services: add, rename, length, bays needed, "Bookable online" toggle. New ids come from the name; saved ids never change.
+  - Save sends the whole object with PUT. The API's refusal is shown in the section its `field` names (`bays_in_use` goes under Booking rules).
+  - Change PIN.
+- **Playwright** (`playwright.config.mjs`):
+  - Projects chromium-390 (390×844, touch, mobile), chromium-1280, webkit-390 (iPhone 14), webkit-1280; `workers: 1`.
+  - `webServer` = `tests/start-worker.mjs`: it wipes `app/tests/.state-7303`, migrates `--local --persist-to` it, and runs `wrangler dev` on 7303
+    (inspector 7313) with `--var TEST_MODE:1`. `baseURL` is that Worker.
+  - `tests/helpers.mjs`:
+    - `fresh()`: `POST /api/test/reset` plus the `X-Test-Now: 2026-09-14T11:30:00Z` headers.
+    - `tap()`: `elementFromPoint` hit-test at the centre, then a real touch on coarse pointers or a real click.
+    - `type()`: real `page.keyboard`.
+    - `needsRoute()`: skips a test with "waiting on bb1 M2: …" only while that route answers the router's bare `404 "Not found."`.
+- **Specs:**
+  - `journey`: book with real input → Request sent → status Requested. A second context signs in with the PIN; the card is pending with the
+    full link inside its text; Copy text says Copied (and the chromium clipboard holds the link); Confirm. The customer's page, **without a
+    reload**, turns Confirmed by its poll, and Add to calendar's href = `ics_url`. A second test checks that URL returns `text/calendar`.
+  - `pin`: wrong PIN shows "That PIN is not right." and `waitForResponse` sees 401 with no token stored. The right PIN signs in, survives a
+    reload, and Sign out clears the token.
+  - `taken`: settings leave one oil slot on Tue Sep 15 (1 bay, 1 per start, Tuesday 8:00–8:30). Two contexts pick it; the second sees
+    "just taken" and exactly three alternatives; one tap on one reaches Request sent.
+  - `offer`: shop offers Wed 2:00 PM with a note → customer sees New time offered → Accept → Confirmed at the new time.
+  - `days`: Sunday disabled with "Closed", the Sep 21 closure, 14 chips, and the SAMPLE badge and name on the customer, status and shop
+    screens (before and after sign-in). Send request (before and after errors), Sign in and Confirm are ≥ 44 px at 390, enabled, opacity 1,
+    hit-test to themselves, and have ≥ 4.5 : 1 contrast.
+  - `shop`: on the seeded week, pending count and cards, an offered card showing its offer, Today by bay (at 390 the truck job appears only
+    after tapping Bay 2; at 1280 it shows in both its bays), the walk-in block, the item menu with Send to Shop Board, and the Week item
+    count matching the API. Push, Block out and Settings (a `bays_in_use` refusal shown inline, then a save that closes Saturdays for customers)
+    wait on bb1 M2.
+- Screenshots per project in `app/tests/shots/` (not tracked): book-1-service, book-2-day, book-3-time, book-4-details-errors, book-5-sent,
+  status-requested, status-confirmed, shop-signin, shop-signin-wrong, shop-pending, shop-today, shop-item, shop-week, shop-block-form; when bb1
+  M2 lands, also book-taken, shop-offer, status-offered, shop-settings. I looked at shop-today (390 and 1280), shop-week-1280 and
+  book-4-details-errors-390: the bay control, bay columns, hatched walk-in, week columns and a solid Send request all read right.
+
+### Numbers (this worktree, real Worker on 7303)
+`npx playwright test`: **20 passed, 0 failed, 24 skipped** (2.7 min), exit 0, run twice (before and after the negative controls).
+The 24 skips are 6 tests × 4 projects, each "waiting on bb1 M2", **not failures**:
+
+| Test | Waiting on |
+|---|---|
+| journey › the Add to calendar link returns text/calendar | `GET /api/r/:token/ics` |
+| offer › shop offers another time → customer accepts → Confirmed | `POST /api/r/:token/accept`, `POST /api/shop/requests/:id/offer`, `GET /api/shop/slots` |
+| taken › the second customer to send sees "just taken" and three alternatives | `GET/PUT /api/shop/settings` (to leave one slot) |
+| shop › Send to Shop Board says plainly when it is not set up | `POST /api/shop/requests/:id/push` |
+| shop › Block out time adds a walk-in block to the board | `POST /api/shop/blocks` (the form itself renders and is screenshotted first) |
+| shop › Settings load, save, and show the API refusal inline | `GET/PUT /api/shop/settings` |
+
+Passing on all 4 projects: journey (full flow), both pin tests, days, and shop › pending/Today/Week/item details.
+
+### Negative controls (each broken, run on chromium-390, red, restored byte for byte with `cmp`, full suite green again)
+- **(a) status label mapping** (`confirmed: { label: 'Requested' }` in `ui.js`) → `journey` red:
+  `Error: expect(locator).toHaveText(expected) failed · Expected: "Confirmed" · Received: "Requested"` (1 failed).
+- **(b) transparent overlay over Send request** (`#details::after`, 60 px, z-index 5) → `journey` red:
+  `Error: tap(Send request) hit-test at 195,733: something else is on top · Expected: ""` (1 failed).
+- **(c) old primary gradient** (`#6366f1 → #8b5cf6`) → `days` red: `Error: Send request text contrast (worst gradient stop)` (1 failed).
+- **(d) message link left bare** (`fullLink` returns the text unchanged) → `journey` red:
+  `Expected substring: "Details: http://127.0.0.1:7303/r/?t=sfPx…" · Received string: "Hi Pat, it's SAMPLE Auto Service. Your oil change is booked for Tue Sep 15 at 10:00 AM. Details: /r/?t=sfPx…"`.
+- Still standing from M1: the clock guard (self-test + known-bad copy), and the real-Worker smoke control.
+
+### Honest gaps
+- **Written against the contract, not yet run:** offer/decline pickers, shop cancel, Send to Shop Board, block create/remove, export
+  download, Settings and PIN change. Their specs exist and switch on by themselves when the routes stop answering the bare 404. Until bb1 M2
+  is on main, those screens have only been checked by reading the code. The Settings refusal mapping assumes `field` starts with the part it
+  names (`services…`, `hours…`, `closures…`, a rule key).
+- `api.mock.js` covers the customer routes only (matched to the real Worker). I did not add mock shop routes: the shop screens ran against the
+  real Worker instead.
+- An offered item is drawn in `offer.bays` when present, else `request.bays` (cross-review #6 for bb1).
+- Not tested: that the board poll skips while a picker is open (there is code for it, but no spec), and that the export file downloads.
+- `shots-m1.mjs` (the M1 mock/real smoke) still runs: `--real` 178/0, mock 186/0 before the M2 changes. It is a dev tool now; the suite is the record.

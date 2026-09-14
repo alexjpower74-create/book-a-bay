@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0f1c">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Shop | Book a Bay</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&display=swap">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/shop.css">
+  <script type="module" src="/shop.js"></script>
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="dots" aria-hidden="true"></div>
+
+  <header class="bar glass shop-bar">
+    <h1><a class="home mark" href="/shop/">Book a Bay</a> <small>for the shop</small></h1>
+    <span class="grow"></span>
+    <nav class="tabs shop-nav" id="nav" role="tablist" aria-label="Shop pages" hidden>
+      <button type="button" role="tab" data-view="board" aria-selected="true">Board</button>
+      <button type="button" role="tab" data-view="settings" aria-selected="false">Settings</button>
+    </nav>
+    <button type="button" class="btn quiet" id="signout" hidden>Sign out</button>
+  </header>
+
+  <main class="page shop-page">
+    <div class="shop-head">
+      <p class="eyebrow">Shop side</p>
+      <h2><span data-shop-name></span> <span class="sample" data-sample hidden>SAMPLE</span></h2>
+    </div>
+    <div id="shop" aria-live="polite"></div>
+  </main>
+</body>
+</html>
