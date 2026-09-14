@@ -87,3 +87,11 @@ Alexander was asleep for this build; every real call is written here with its re
 25. **One Playwright test injects `pushed_at` into the board response** to check "Sent to Shop Board <time>" is drawn, because the test
     Worker has no Shop Board to push to. The real push was proven end to end by the lead against a local copy of Shop Board
     (DECISIONS.md 13) and by bb1's contract test against the transcribed fake.
+
+## 2026-09-14, lead (after the curated screenshots)
+
+26. **The sticky header is solid Cosmic ground (`#0d1425`), not glass.** The lead's screenshots from `npm run demo` on WebKit at 390
+    showed the step tiles reading straight through the header on "Request sent": WebKit on a phone did not blur behind it, and the
+    0.72 glass (and a 0.94 tint bb2 tried first) let bright text show. A check now requires the header to be ≥ 0.99 opaque with the
+    header itself under its centre after scrolling; it was red on the real unfixed CSS (0.72) and red again for both weaker fixes.
+    Shop Board's header is glass too and likely has the same issue on iPhone; noted for that project, not touched tonight.
