@@ -87,7 +87,8 @@ a { color: var(--accent); text-decoration: none; }
 .btn:hover { border-color: rgba(167,139,250,0.5); box-shadow: 0 0 0 1px rgba(167,139,250,0.5), 0 6px 20px rgba(129,140,248,0.25); }
 .btn:hover::after { transform: translateX(120%); transition: transform 600ms var(--ease); }
 .btn:active { transform: translateY(1px); }
-.btn.primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); border-color: transparent; color: #fff; font-weight: 600; box-shadow: 0 6px 18px rgba(99,102,241,0.35); }
+/* Shop Board's #6366f1 → #8b5cf6 puts white text at 4.47:1 and 4.2:1; one step darker keeps the look at 6.3:1 and 5.7:1. */
+.btn.primary { background: linear-gradient(135deg, #4f46e5, #7c3aed); border-color: transparent; color: #fff; font-weight: 600; box-shadow: 0 6px 18px rgba(99,102,241,0.35); }
 .btn.quiet { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.quiet:hover { background: rgba(129,140,248,0.14); color: var(--accent-strong); box-shadow: 0 0 14px rgba(129,140,248,0.25); }
 .btn.danger { background: rgba(251,113,133,0.14); border-color: rgba(251,113,133,0.5); color: #fecdd3; }

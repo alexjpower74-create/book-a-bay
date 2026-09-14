@@ -68,7 +68,7 @@ async function run(action) {
 
 function loadPickDays() {
   const mine = ++pickSeq
-  api.days(v.req.service.id).then(
+  api.pickDays(token).then(
     (r) => { if (mine === pickSeq && v.pick) { v.pick.days = r.days; render() } },
     (e) => { if (mine === pickSeq && v.pick) { v.pick.error = e.message; render() } },
   )
@@ -77,7 +77,7 @@ function loadPickDays() {
 function loadPickSlots() {
   const mine = ++pickSeq
   const p = v.pick
-  api.slots(v.req.service.id, p.date).then(
+  api.pickSlots(token, p.date).then(
     (r) => { if (mine === pickSeq && v.pick === p) { p.slots = r; render() } },
     (e) => { if (mine === pickSeq && v.pick === p) { p.error = e.message; render() } },
   )

@@ -240,6 +240,17 @@ async function send() {
       updateSend()
       showError(e.field, e.message)
       focusField(document.getElementById(`f-${e.field}`))
+    } else if (['service', 'date', 'time'].includes(e.field)) {
+      // The choice itself went stale (e.g. the shop changed its hours): say so and offer the way back.
+      s.sendError = e.message
+      updateSend()
+      const box = document.getElementById('send-error')
+      const back = document.createElement('button')
+      back.type = 'button'
+      back.className = 'btn'
+      back.dataset.go = e.field === 'time' ? 'time' : e.field === 'date' ? 'day' : 'service'
+      back.textContent = e.field === 'time' ? 'Pick another time' : e.field === 'date' ? 'Pick another day' : 'Pick a service'
+      box.append(document.createElement('br'), back)
     } else {
       s.sendError = e.message
       updateSend()

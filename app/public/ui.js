@@ -1,5 +1,5 @@
-// Small shared pieces for the pages: escaping, labels, day chips and time buttons, the shop header, copy to clipboard.
-// No clock in here: every date and label comes from the API.
+// Small shared pieces for the pages: escaping, labels, day chips and time buttons, the shop header, copy to clipboard,
+// and string-only date/time helpers. No clock in here: every date and label comes from the API.
 
 export const esc = (v) =>
   String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
@@ -11,13 +11,46 @@ export function duration(min) {
   return `${h} hr${h > 1 ? 's' : ''}${m ? ` ${m} min` : ''}`
 }
 
-// Shop Board's duration bands: cyan short, violet medium, magenta long.
-export const band = (min) => (min <= 45 ? 'short' : min <= 90 ? 'mid' : 'long')
+// Shop Board's bandOf: 60 min or less short (cyan), 180 or less medium (violet), longer long (magenta).
+export const band = (min) => (min <= 60 ? 'short' : min <= 180 ? 'mid' : 'long')
 
 // "13:30" → "1:30 PM" (string formatting only, the times are already shop local).
 export function clock(hhmm) {
   const [h, m] = String(hhmm).split(':').map(Number)
   return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
+}
+
+export const toMin = (t) => {
+  const [h, m] = String(t).split(':').map(Number)
+  return h * 60 + m
+}
+export const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+
+// Calendar arithmetic on "YYYY-MM-DD" strings from the API (never "today" from the browser).
+export function addDays(date, n) {
+  const [y, m, d] = date.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
+}
+
+// An instant the API recorded (e.g. pushed_at) as a shop-local label, "Mon Sep 14, 9:12 AM". This formats a given time;
+// it never reads the browser's clock.
+export function instantLabel(iso, timeZone = 'America/St_Johns') {
+  const ms = Date.parse(iso)
+  if (Number.isNaN(ms)) return ''
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+      .formatToParts(ms)
+      .map((p) => [p.type, p.value]),
+  )
+  return `${parts.weekday} ${parts.month} ${parts.day}, ${parts.hour}:${parts.minute} ${parts.dayPeriod}`
+}
+
+// Message texts carry the bare status path (API.md clarification 4): show and copy them with the full link.
+export function fullLink(text, statusUrl) {
+  const s = String(text ?? '')
+  if (!statusUrl) return s
+  const full = location.origin + statusUrl
+  return s.split(full).join(statusUrl).split(statusUrl).join(full)
 }
 
 export const STATUS = {
@@ -38,13 +71,15 @@ export const icon = {
   calendar: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
 }
 
-// days: the `days` array from GET /api/days. Closed days are disabled and show their reason; open days with nothing left say Full.
-export function dayChips(days, today, selected) {
+// days: the `days` array from GET /api/days. Closed days are disabled and show their reason; open days with nothing
+// left say Full. With { shop: true } every open day stays tappable (the shop's own times come from /api/shop/slots).
+export function dayChips(days, today, selected, { shop = false } = {}) {
   return days
     .map((d) => {
       const [wd, ...rest] = d.label.split(' ')
-      const kind = !d.open ? 'closed' : d.available > 0 ? 'open' : 'full'
-      const note = kind === 'closed' ? d.reason || 'Closed' : kind === 'full' ? 'Full' : `${d.available} ${d.available === 1 ? 'time' : 'times'}`
+      const kind = !d.open ? 'closed' : shop || d.available > 0 ? 'open' : 'full'
+      const note =
+        kind === 'closed' ? d.reason || 'Closed' : kind === 'full' ? 'Full' : shop ? 'Open' : `${d.available} ${d.available === 1 ? 'time' : 'times'}`
       return `<button type="button" class="day" data-date="${esc(d.date)}" data-kind="${kind}" aria-pressed="${d.date === selected}"${kind === 'open' ? '' : ' disabled'}>
         <span class="wd">${d.date === today ? 'Today' : esc(wd)}</span><span class="dm">${esc(rest.join(' '))}</span><span class="av">${esc(note)}</span></button>`
     })
