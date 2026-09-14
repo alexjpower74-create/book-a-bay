@@ -1,0 +1,11 @@
+.rig/
+.worktrees/
+node_modules/
+.wrangler/
+.dev.vars
+worker/SECRETS.txt
+test-results/
+playwright-report/
+app/tests/results/
+app/tests/.state-*/
+worker/.state-*/

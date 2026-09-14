@@ -1,0 +1,12 @@
+{
+  "name": "book-a-bay-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "node serve.mjs 7301",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
