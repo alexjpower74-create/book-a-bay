@@ -250,9 +250,11 @@ function when (date, startMin, endMin) {
   return { date, time: formatTime(startMin), end: formatTime(endMin), label: slotLabel(date, startMin) }
 }
 
-function offerOf (row) {
+/** The offered time while status is offered. The shop view also gets the bays it holds (API.md clarification 17). */
+function offerOf (row, { bays = false } = {}) {
   if (row.status !== 'offered' || !row.offer_date) return null
-  return when(row.offer_date, row.offer_start_min, row.offer_end_min)
+  const offer = when(row.offer_date, row.offer_start_min, row.offer_end_min)
+  return bays ? { ...offer, bays: parseArr(row.offer_bays) } : offer
 }
 
 function customerOf (row) {
@@ -303,7 +305,7 @@ function shopView (row, settings) {
     service: { id: row.service_id, name: row.service_name, minutes: row.minutes, bays_needed: row.bays_needed },
     ...when(row.date, row.start_min, row.end_min),
     bays: parseArr(row.bays),
-    offer: offerOf(row),
+    offer: offerOf(row, { bays: true }),
     customer: customerOf(row),
     shop_note: row.shop_note,
     status_url: statusUrl(row.token),
@@ -1069,7 +1071,10 @@ async function testSeed (c) {
 
 // ---- router ----
 
-const TOKEN = '([A-Za-z0-9_-]{16,128})'
+// Any token shape reaches the handler, whose lookup answers the one customer-readable 404 (API.md clarification 18): a link
+// cut short in a text message must read the same as an unknown one. tests/negative-contract.mjs restores the old strict
+// pattern to show the difference; keep this line as is.
+const TOKEN = '([^/]*)'
 const REQUEST_ID = '(r_[A-Za-z0-9]{1,64})'
 
 const routes = [

@@ -762,3 +762,86 @@ test at tests/api.test.mjs:822:1
     diff: 'simple'
   }
 verdict: RED as expected. With the same latency, the guarded copy passed and the unguarded copy let 5 of 20 runs save bays=2 while a booking held bay 3.
+
+=== negative:contract offer-bays 2026-09-14T05:55:14.625Z (HEAD 4655f89, working tree) ===
+control (unbroken copy on 7305): "shop view: an offered request carries the bays its offer holds" passes
+break: src/index.js:     bays: parseArr(row.bays),⏎    offer: offerOf(row, { bays: true }),  ->      bays: parseArr(row.bays),⏎    offer: offerOf(row) /* NEGATIVE CONTROL: shop offer without bays */,
+✖ shop view: an offered request carries the bays its offer holds; the customer view does not (109.78921ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 170.012481
+
+✖ failing tests:
+
+test at tests/api.test.mjs:872:1
+✖ shop view: an offered request carries the bays its offer holds; the customer view does not (109.78921ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  -   bays: [
+  -     2,
+  -     3
+  -   ],
+      date: '2026-09-16',
+      end: '12:00',
+      label: 'Wed Sep 16, 10:00 AM',
+      time: '10:00'
+    }
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/contract-offer-bays/tests/api.test.mjs:884:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { date: '2026-09-16', time: '10:00', end: '12:00', label: 'Wed Sep 16, 10:00 AM' },
+    expected: { date: '2026-09-16', time: '10:00', end: '12:00', label: 'Wed Sep 16, 10:00 AM', bays: [ 2, 3 ] },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "shop view: an offered request carries the bays its offer holds" fails when the shop view offer no longer carries bays.
+
+=== negative:contract token-pattern 2026-09-14T05:55:21.027Z (HEAD 4655f89, working tree) ===
+control (unbroken copy on 7305): "every miss under /api/r/ is 404 with the booking text" passes
+break: src/index.js: const TOKEN = '([^/]*)'  ->  const TOKEN = '([A-Za-z0-9_-]{16,128})' /* NEGATIVE CONTROL: old strict pattern */
+✖ every miss under /api/r/ is 404 with the booking text, whatever the token looks like (46.689471ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 124.008399
+
+✖ failing tests:
+
+test at tests/api.test.mjs:893:1
+✖ every miss under /api/r/ is 404 with the booking text, whatever the token looks like (46.689471ms)
+  AssertionError [ERR_ASSERTION]: GET /api/r/nope
+  + actual - expected
+  
+    {
+      code: 'not_found',
+  +   error: 'Not found.'
+  -   error: 'We could not find that booking. Please check the link the shop sent you.'
+    }
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/contract-token-pattern/tests/api.test.mjs:905:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { error: 'Not found.', code: 'not_found' },
+    expected: { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "every miss under /api/r/ is 404 with the booking text" fails when the router's old token pattern {16,128} is back.
