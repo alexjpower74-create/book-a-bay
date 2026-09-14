@@ -11,6 +11,7 @@ The slices' own reports (`docs/build-report-bb1.md`, `docs/build-report-bb2.md`)
 | bb1 M1 | `a60a943` | 15 / 15 | 9 / 9 | race: guard removed, 8 of 8 customers booked the one place (red as required) |
 | bb1 M2 | `6e90d03` | 20 / 20 | 30 / 30 | race, status race, closures, bays, adapter mapping, lenient fake Shop Board: all red |
 | bb1 M3 | `81c58f5` | 20 / 20 | 31 / 31 | the six above plus bays-in-flight: all red |
+| bb1 M3b | `8e71df5` | 20 / 20 | 33 / 33 | the seven above plus shop `offer.bays` and the one readable `/api/r` 404: all nine red |
 
 0 skipped in every run.
 
@@ -25,6 +26,8 @@ The slices' own reports (`docs/build-report-bb1.md`, `docs/build-report-bb2.md`)
 | Slots respect the bay count | `pickBays` looks at 10 bays | the bay-count change test fails |
 | Shop Board row mapping | 12:45 maps to `12:00 PM` | the mapping table fails |
 | Fake Shop Board refuses what the real one refuses | the fake accepts any slot | the contract test fails |
+| Shop view offer carries its bays | `bays` dropped from the shop offer | the offered-request test fails |
+| A cut-short status link reads like an unknown one | the old `{16,128}` token pattern restored | `GET /api/r/nope` answers the bare "Not found." |
 | App: status page shows Confirmed (bb2) | `confirmed` label shown as "Requested" | journey fails at 390 and 1280, against the mock and against the real Worker |
 | App: taps hit the button they aim at (bb2) | transparent overlay over Send request | 4 taps fail the `elementFromPoint` hit-test |
 | App: never the browser clock (bb2) | `new Date()` added to a copy | the clock guard fails; its pattern self-tests every run |
