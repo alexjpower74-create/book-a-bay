@@ -310,3 +310,45 @@ won **and** a booking holds bay 3. The only difference between the two copies is
 - **Stagger settings are test knobs, not product switches.** They only change when the test's client sends, in `api.test.mjs`.
 - **The block-out guard** was not in the brief. It closes the same gap for a walk-in block on a bay being removed. Veto if you'd rather it wasn't there.
 - `npm run negative` now also runs `negative:bays`: all five control scripts, six breaks.
+
+## M3b: bb2's cross-review findings (API.md clarifications 17 and 18, 2026-09-14)
+
+Rebased onto main first (4655f89). Ports 7302, 7304 and 7305 only. bb2's third finding, message grammar, was already fixed in M2.
+
+| Item | Status | Where |
+|---|---|---|
+| **17.** The shop view's `offer` is `{ date, time, end, label, bays }`, with `bays` from `offer_bays`. The customer view's `offer` stays `{ date, time, end, label }`. | DONE | `worker/src/index.js`: `offerOf(row, { bays: true })` in `shopView` only |
+| **18.** Every miss under `/api/r/*` is `404 {"error":"We could not find that booking. Please check the link the shop sent you.","code":"not_found"}`, whatever the token looks like | DONE | the router's token pattern `([A-Za-z0-9_-]{16,128})` becomes `([^/]*)`, so any shape reaches the handler, whose lookup answers that 404 |
+| `npm run negative:contract` (both controls; an unbroken copy passes first, then the broken copy on 7305) | DONE | `worker/tests/negative-contract.mjs` |
+
+### M3b: verified
+
+`npm test`: **unit 20 passed, 0 failed · API 33 passed, 0 failed, 0 skipped.** Race `winners=1`, status race `bad=0` and bays race `bad=0` (5 booking-first, 5 save-first) are unchanged.
+
+- **"shop view: an offered request carries the bays its offer holds; the customer view does not"**
+  - Setup: a 2-bay truck job asks for Tue 10:00 (bays 1, 2). Bay 1 is blocked Wed 10:00–12:00, then the shop offers Wed 10:00, so the offer lands on **bays 2 and 3**.
+  - The bays taken from the offer's actual cells (`/api/test/holds`) are `[2, 3]`.
+  - The offer response, the board item and the pending card all carry `offer.bays` equal to that.
+  - The request's own `bays` stay `[1, 2]`, and the customer view's offer has no `bays`.
+  - The M2 offer/accept test now also expects `bays: [1]` on the shop offer and checks the customer offer's exact shape.
+- **"every miss under /api/r/ is 404 with the booking text, whatever the token looks like"**
+  - Ten requests, each giving exactly that body with 404: `GET /api/r/nope`, `GET /api/r/abc$def`, `POST /api/r/nope/accept`, `POST …/nope/repick`, `POST …/nope/cancel`, `GET …/nope/ics`, `POST /api/r/abc$def/cancel`, `GET /api/r/abc%20def`, a well-formed unknown 32-char token, and a 200-char token.
+  - Control in the same test: a real token still opens its booking with 200.
+
+### M3b: negative controls (red output from `worker/tests/negative-control.log`)
+
+| Control | Break | Result |
+|---|---|---|
+| offer bays | `shopView`: `offer: offerOf(row, { bays: true })` → `offer: offerOf(row)` | **RED**. The unbroken copy passes first. Output: `✖ shop view: an offered request carries the bays its offer holds`, with `actual: { date: '2026-09-16', time: '10:00', end: '12:00', label: 'Wed Sep 16, 10:00 AM' }` and `expected: { …, bays: [ 2, 3 ] }`. |
+| token pattern | `const TOKEN = '([^/]*)'` → `'([A-Za-z0-9_-]{16,128})'` (the old one) | **RED**. The unbroken copy passes first. Output: `✖ every miss under /api/r/ is 404 with the booking text`, `AssertionError: GET /api/r/nope`, with `actual: { error: 'Not found.', code: 'not_found' }` and `expected: { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' }`. |
+
+`npm run negative` now runs all six control scripts: slots, shopboard, race, status, bays, contract.
+
+### M3b: one decision and its limit (lead: confirm or overrule)
+
+- **No catch-all route for `/api/r/*`.** A fallback that answers the booking text for any unmatched `/api/r/…` path would also
+  answer it while the old strict pattern was in place. The negative control could then never go red, so the fix lives in the
+  token pattern itself. **The limit:** a path that is not one of the five customer routes, such as an unknown action
+  (`GET /api/r/<token>/nope`) or a wrong method (`DELETE /api/r/<token>`), still gets the router's generic
+  `404 {"error":"Not found.","code":"not_found"}`. The app never builds those links. If you want them covered too, a
+  second-segment catch-all can be added without weakening this control, because `GET /api/r/nope` has no second segment.

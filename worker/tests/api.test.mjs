@@ -372,7 +372,7 @@ test('offer another time, then the customer accepts; /api/shop/slots?exclude= tr
   assert.equal(offered.status, 200, offered.text)
   assert.equal(offered.body.status, 'offered')
   assert.equal(offered.body.time, '09:30', 'the original ask stays')
-  assert.deepEqual(offered.body.offer, { date: WED, time: '10:00', end: '10:30', label: 'Wed Sep 16, 10:00 AM' })
+  assert.deepEqual(offered.body.offer, { date: WED, time: '10:00', end: '10:30', label: 'Wed Sep 16, 10:00 AM', bays: [1] })
   assert.deepEqual(offered.body.messages, [{
     key: 'offered',
     label: 'Text with the new time',
@@ -385,7 +385,7 @@ test('offer another time, then the customer accepts; /api/shop/slots?exclude= tr
   assert.equal(wedBoard.days[0].items.find(i => i.kind === 'request').request.id, a.id, 'the board shows it where the hold is')
   const customer = await viewOf(a.token)
   assert.equal(customer.status, 'offered')
-  assert.equal(customer.offer.label, 'Wed Sep 16, 10:00 AM')
+  assert.deepEqual(customer.offer, { date: WED, time: '10:00', end: '10:30', label: 'Wed Sep 16, 10:00 AM' })
 
   const accepted = await api('POST', `/api/r/${a.token}/accept`)
   assert.equal(accepted.status, 200, accepted.text)
@@ -867,4 +867,43 @@ test('lowering bays while bookings are in flight: never a hold above the stored 
   // Both ways must have happened, or this run only measured one side of the guard.
   assert.ok(outcomes.some(o => o.startsWith('save200')), 'at least one run where the save won')
   assert.ok(outcomes.some(o => o.startsWith('save409')), 'at least one run where a booking won')
+})
+
+test('shop view: an offered request carries the bays its offer holds; the customer view does not', async () => {
+  // API.md clarification 17. A 2-bay job offered where bay 1 is blocked lands on bays 2 and 3, not on its original 1 and 2.
+  await reset()
+  const token = await signin()
+  const a = await create('truck-rv', TUE, '10:00')
+  assert.equal((await api('POST', '/api/shop/blocks', { token, body: { date: WED, time: '10:00', end: '12:00', bays: [1] } })).status, 201)
+  const offered = await api('POST', `/api/shop/requests/${a.id}/offer`, { token, body: { date: WED, time: '10:00' } })
+  assert.equal(offered.status, 200, offered.text)
+
+  const heldBays = [...new Set((await holdsOf(a.id)).cells.map(cell => cell.bay))]
+  assert.deepEqual(heldBays, [2, 3], 'precondition: the offer holds bays 2 and 3')
+  const offer = { date: WED, time: '10:00', end: '12:00', label: 'Wed Sep 16, 10:00 AM' }
+  assert.deepEqual(offered.body.offer, { ...offer, bays: heldBays })
+  const board = (await api('GET', `/api/shop/board?date=${WED}`, { token })).body
+  const item = board.days[0].items.find(i => i.kind === 'request' && i.request.id === a.id)
+  assert.deepEqual(item.request.offer, { ...offer, bays: heldBays }, 'board item offer.bays = the bays the offer holds')
+  assert.deepEqual(item.request.bays, [1, 2], 'the request keeps its original bays')
+  assert.deepEqual(board.pending.find(p => p.id === a.id).offer.bays, heldBays)
+  assert.deepEqual((await viewOf(a.token)).offer, offer, 'the customer view offer has no bays')
+})
+
+test('every miss under /api/r/ is 404 with the booking text, whatever the token looks like', async () => {
+  // API.md clarification 18.
+  await reset()
+  const miss = { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' }
+  const cases = [
+    ['GET', '/api/r/nope'], ['GET', '/api/r/abc$def'], ['POST', '/api/r/nope/accept'],
+    ['POST', '/api/r/nope/repick'], ['POST', '/api/r/nope/cancel'], ['GET', '/api/r/nope/ics'], ['POST', '/api/r/abc$def/cancel'],
+    ['GET', '/api/r/abc%20def'], ['GET', '/api/r/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'], ['GET', `/api/r/${'x'.repeat(200)}`]
+  ]
+  for (const [method, path] of cases) {
+    const r = await api(method, path)
+    assert.equal(r.status, 404, `${method} ${path}: ${r.text}`)
+    assert.deepEqual(r.body, miss, `${method} ${path}`)
+  }
+  const real = await create('oil', TUE, '09:30')
+  assert.equal((await api('GET', `/api/r/${real.token}`)).status, 200, 'control: a real token still opens its booking')
 })
