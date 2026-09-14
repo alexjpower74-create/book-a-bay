@@ -198,3 +198,23 @@ created_at, updated_at, pushed_at)` · `cells(date, bay, cell, owner, UNIQUE(dat
 UNIQUE(date, start_min, n))` · `blocks(id PK, date, start_min, end_min, bays JSON, label, created_at)` · `sessions(token_hash PK,
 expires_at)` · `attempts(kind, key, created_at)`. `owner` is `r:<id>` or `b:<id>`. For `starts`, `n` is the smallest free number
 1..`max_per_slot`, so a released number is reused and two racers picking the same `n` collide.
+
+## Clarifications (lead, after bb1 M1, 2026-09-14 02:50)
+
+These are bb1's readings of the contract, reviewed and adopted. Both slices follow them.
+
+1. **Service ids** of the SAMPLE shop: `oil`, `tire-swap`, `brakes`, `diagnostic`, `truck-rv` (2 bays).
+2. **Default closure** `2026-09-21 "Staff training (sample)"` ships in the defaults, so Mon Sep 21 shows closed with that reason.
+3. **Bad time vs taken time.** A `time` that is not on that day's grid (off-step, past closing, closed day) is `400 bad_request`,
+   `field: "time"`. A grid time lost to holds, the per-slot cap or the lead time is `409 taken` with `next`.
+4. **Messages while `requested`** list three texts (`received`, `confirmed`, `declined`) so the shop can copy the one it is about
+   to send; other statuses list their own; `cancelled` lists none. Message `text` contains the bare path `/r/?t=…`: **the app
+   replaces that path inside `text` with `location.origin + status_url`** before showing or copying it.
+5. **Board items for an `offered` request** sit at the offer's date and time (where the hold is); the request's own `date`/`time`
+   stay the customer's original ask and `offer` carries the new time.
+6. **Defaults live once**, in migration `0002` under `default:<key>`; `/api/test/reset` copies them back. The default PIN salt is
+   fixed in that migration until the shop changes the PIN.
+7. **Status changes are race-safe.** Every status change that releases or moves a hold is one `DB.batch()` in which the hold
+   statements only take effect if the status transition itself happened (a conditional UPDATE that changes 0 rows does not abort a
+   batch, so the deletes/inserts must be conditional on the new status). Two shop taps at once (Confirm + Decline) end with a
+   request whose holds match its status: holding status ⇔ cells present.
