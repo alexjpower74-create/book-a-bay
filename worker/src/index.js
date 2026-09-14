@@ -122,7 +122,19 @@ function holdStatements (db, plan) {
   return stmts
 }
 
-const isUniqueViolation = e => /UNIQUE constraint failed/i.test(String(e?.message || e) + String(e?.cause?.message || ''))
+const errorText = e => String(e?.message || e) + String(e?.cause?.message || '')
+const isUniqueViolation = e => /UNIQUE constraint failed/i.test(errorText(e))
+// json() of a non-JSON string raises "malformed JSON", which rolls the whole batch back: the in-transaction guards use it.
+const isGuardRefusal = e => /malformed JSON/i.test(errorText(e))
+/** A hold lost to another writer: a racing hold on the same cells or start, or a bay removed by a settings save. */
+const lostHold = e => isUniqueViolation(e) || isGuardRefusal(e)
+
+// Bays in flight (API.md clarification 16). Every batch that writes cells carries this statement, bound to the highest bay
+// it writes. It reads the bay count stored in settings at commit, inside the same transaction, and raises if that bay is gone,
+// so either a settings save lowering bays commits first and this writer re-reads and retries, or this writer commits first and
+// the save answers bays_in_use. tests/negative-bays.mjs replaces this line to show the double outcome; keep it as is.
+const BAY_GUARD_SQL = "SELECT json(CASE WHEN ?1 > (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'bays') THEN 'bay removed' ELSE '0' END)"
+const bayGuard = (db, bays) => db.prepare(BAY_GUARD_SQL).bind(Math.max(...bays))
 
 /** Every hold overlapping [start, end) on the given bays of a date, named for people. */
 async function conflictsAt (db, date, start, end, bays, exclude = null) {
@@ -208,24 +220,26 @@ async function moveHold (c, settings, row, { date, start, from, set, binds }) {
   const today = shopToday(settings, c.now)
   const service = { minutes: row.minutes, bays_needed: row.bays_needed }
   for (let attempt = 0; attempt <= HOLD_RETRIES; attempt++) {
+    if (attempt) settings = await loadSettings(db) // a lost hold may mean the bay count changed
     const holds = await loadHolds(db, today)
     const slot = availableStarts({ settings, service, date, now: c.now, holds, exclude: owner }).find(s => s.start_min === start)
-    if (!slot) return { moved: false, holds }
+    if (!slot) return { moved: false, holds, settings }
     const { results } = await db.prepare('SELECT n FROM starts WHERE date = ?1 AND start_min = ?2 AND owner != ?3').bind(date, start, owner).all()
     const n = startNumber(results.map(r => r.n), settings.max_per_slot)
-    if (!n) return { moved: false, holds }
+    if (!n) return { moved: false, holds, settings }
     const plan = { date, start_min: start, end_min: slot.end_min, bays: slot.bays, n }
     try {
       const applied = await changeStatus(db, {
         id: row.id, from, set, binds: binds(plan), now: c.now,
-        holds: rev => [...releaseStatements(db, row.id, rev), ...placeStatements(db, row.id, rev, plan)]
+        holds: rev => [bayGuard(db, plan.bays), ...releaseStatements(db, row.id, rev), ...placeStatements(db, row.id, rev, plan)]
       })
-      return { moved: true, applied }
+      return { moved: true, applied, settings }
     } catch (e) {
-      if (!isUniqueViolation(e)) throw e
+      if (!lostHold(e)) throw e
     }
   }
-  return { moved: false, holds: await loadHolds(db, today) }
+  settings = await loadSettings(db)
+  return { moved: false, holds: await loadHolds(db, today), settings }
 }
 
 // ---- request views ----
@@ -401,7 +415,7 @@ function validateCustomer (body) {
 async function postRequest (c) {
   const body = await readJson(c.request)
   const db = c.db
-  const settings = await loadSettings(db)
+  let settings = await loadSettings(db)
   const service = activeService(settings, body.service)
   const { date, start } = pickedTime(settings, c.now, service, body)
   const customer = validateCustomer(body)
@@ -422,6 +436,7 @@ async function postRequest (c) {
      VALUES (?1, ?2, 'requested', ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, '', ?17, ?17)`)
 
   for (let attempt = 0; attempt <= HOLD_RETRIES; attempt++) {
+    if (attempt) settings = await loadSettings(db) // a lost hold may mean the bay count changed
     const holds = await loadHolds(db, today)
     const slot = availableStarts({ settings, service, date, now: c.now, holds }).find(s => s.start_min === start)
     if (!slot) break
@@ -432,18 +447,20 @@ async function postRequest (c) {
     const stmts = [
       insertRequest.bind(id, token, service.id, service.name, service.minutes, service.bays_needed, date, start, end,
         JSON.stringify(plan.bays), customer.name, customer.phone, customer.year, customer.make, customer.model, customer.note, stamp),
+      bayGuard(db, plan.bays),
       ...holdStatements(db, plan)
     ]
     let committed = false
     // The race guard. In scope: db, plan, stmts; sets committed. D1 runs a batch as one transaction and the UNIQUE
-    // indexes on cells and starts make the second of two racing batches fail and roll back completely.
+    // indexes on cells and starts make the second of two racing batches fail and roll back completely; the bay guard in
+    // stmts does the same when a settings save removed the bay first. Either loss re-reads and retries.
     // tests/negative-race.mjs replaces exactly this region with an unguarded check-then-insert; keep the markers.
     // RACE-GUARD:BEGIN
     try {
       await db.batch(stmts)
       committed = true
     } catch (e) {
-      if (!isUniqueViolation(e)) throw e
+      if (!lostHold(e)) throw e
     }
     // RACE-GUARD:END
     if (committed) {
@@ -451,6 +468,7 @@ async function postRequest (c) {
     }
   }
 
+  settings = await loadSettings(db)
   throw takenError({ settings, service, date, start, now: c.now, holds: await loadHolds(db, today) })
 }
 
@@ -483,9 +501,9 @@ async function repickTime (c) {
     set: "status = 'requested', date = ?4, start_min = ?5, end_min = ?6, bays = ?7, offer_date = NULL, offer_start_min = NULL, offer_end_min = NULL, offer_bays = NULL",
     binds: p => [p.date, p.start_min, p.end_min, JSON.stringify(p.bays)]
   })
-  if (!r.moved) throw takenError({ settings, service, date, start, now: c.now, holds: r.holds, exclude: `r:${row.id}` })
+  if (!r.moved) throw takenError({ settings: r.settings, service, date, start, now: c.now, holds: r.holds, exclude: `r:${row.id}` })
   if (!r.applied) throw await refusal(c.db, row.id, 'moved to another time')
-  return json(200, customerView(await rowById(c.db, row.id), settings))
+  return json(200, customerView(await rowById(c.db, row.id), r.settings))
 }
 
 async function customerCancel (c) {
@@ -702,13 +720,13 @@ async function offerTime (c) {
   if (!r.moved) {
     const owner = `r:${row.id}`
     const end = start + row.minutes
-    if (!pickBays(occupancy(r.holds, date, owner), settings.bays, row.bays_needed, start, end)) {
-      throw busyError(await conflictsAt(db, date, start, end, allBays(settings), owner))
+    if (!pickBays(occupancy(r.holds, date, owner), r.settings.bays, row.bays_needed, start, end)) {
+      throw busyError(await conflictsAt(db, date, start, end, allBays(r.settings), owner))
     }
-    throw takenError({ settings, service, date, start, now: c.now, holds: r.holds, exclude: owner })
+    throw takenError({ settings: r.settings, service, date, start, now: c.now, holds: r.holds, exclude: owner })
   }
   if (!r.applied) throw await refusal(db, row.id, 'offered another time')
-  return json(200, shopView(await rowById(db, row.id), settings))
+  return json(200, shopView(await rowById(db, row.id), r.settings))
 }
 
 async function shopSlots (c) {
@@ -752,9 +770,11 @@ async function createBlock (c) {
     await db.batch([
       db.prepare('INSERT INTO blocks (id, date, start_min, end_min, bays, label, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
         .bind(id, block.date, start, end, block.bays, block.label, iso(c.now)),
+      bayGuard(db, bays),
       ...holdStatements(db, { owner: `b:${id}`, date: block.date, start_min: start, end_min: end, bays, n: null })
     ])
   } catch (e) {
+    if (isGuardRefusal(e)) throw badRequest('bays', 'The number of bays just changed. Please pick the bays again.')
     if (!isUniqueViolation(e)) throw e
     throw busyError(await conflictsAt(db, body.date, start, end, bays))
   }
@@ -876,7 +896,7 @@ async function putSettings (c) {
       ...SETTINGS_KEYS.map(k => db.prepare(upsert).bind(k, JSON.stringify(next[k])))
     ])
   } catch (e) {
-    if (/malformed JSON/i.test(String(e?.message) + String(e?.cause?.message || ''))) throw await baysInUse()
+    if (isGuardRefusal(e)) throw await baysInUse()
     throw e
   }
   return json(200, settingsView(await loadSettings(db)))

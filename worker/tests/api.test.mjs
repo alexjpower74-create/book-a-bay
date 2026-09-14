@@ -818,3 +818,53 @@ test('export for Shop Board: confirmed only, JSON patches and CSV', async () => 
   expectError(await api('GET', '/api/shop/export/shop-board?format=xml', { token }), 400, 'bad_request')
   expectError(await api('GET', `/api/shop/export/shop-board?from=${WED}&to=${TUE}`, { token }), 400, 'bad_request')
 })
+
+test('lowering bays while bookings are in flight: never a hold above the stored bay count', async () => {
+  // API.md clarification 16. Bays 1-2 are blocked at 11:00, so only bay 3 can take an 11:00 oil change. Six customers send for
+  // it at the same moment the shop saves bays: 2. Either the save wins (200, nobody on bay 3) or a booking wins (the save is
+  // 409 bays_in_use, one booking on bay 3). Never both.
+  const runs = Number(process.env.BAYS_RACE_RUNS || 10)
+  const outcomes = []
+  const bad = []
+  for (let run = 0; run < runs; run++) {
+    await reset()
+    const token = await signin()
+    const s = (await api('GET', '/api/shop/settings', { token })).body
+    assert.equal((await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '11:00', end: '11:30', bays: [1, 2] } })).status, 201)
+    assert.ok((await slotTimes('oil', TUE)).includes('11:00'), 'precondition: 11:00 is open on bay 3')
+
+    // Send timing only (client side): stagger = (run - offset) * step ms; negative sends the bookings first, positive the
+    // save. Defaults (offset 5, step 3) run from bookings 15 ms ahead to the save 12 ms ahead, so both orderings really
+    // happen instead of the save always landing first. negative:bays sweeps its own window because its copies add latency.
+    const stagger = (run - Number(process.env.BAYS_RACE_STAGGER_OFFSET || 5)) * Number(process.env.BAYS_RACE_STAGGER_STEP_MS || 3)
+    const pause = ms => new Promise(r => setTimeout(r, Math.max(0, ms)))
+    const save = pause(-stagger).then(() => api('PUT', '/api/shop/settings', { token, body: { ...s, bays: 2 } }))
+    const bookings = Array.from({ length: 6 }, (_, i) => pause(stagger).then(() =>
+      api('POST', '/api/requests', { body: booking('oil', TUE, '11:00', { name: `Bay Racer ${i} (sample)` }), ip: `10.7.${run}.${i}` })))
+    const [saved, ...booked] = await Promise.all([save, ...bookings])
+
+    const stored = (await api('GET', '/api/shop')).body.bays
+    const winners = booked.filter(r => r.status === 201)
+    const cells = (await Promise.all(winners.map(w => holdsOf(w.body.id)))).flatMap(h => h.cells)
+    const onBay3 = cells.some(cell => cell.bay === 3)
+    outcomes.push(`save${saved.status}:bays${stored}:${winners.length}w:${onBay3 ? 'bay3' : 'nobay3'}`)
+
+    const above = cells.filter(cell => cell.bay > stored)
+    if (above.length) bad.push(`run ${run}: stored bays ${stored} but a booking holds bay ${above[0].bay}`)
+    if (saved.status === 200) {
+      if (stored !== 2 || winners.length || onBay3) bad.push(`run ${run}: save 200 but bays ${stored}, ${winners.length} winners`)
+    } else if (saved.status === 409) {
+      if (saved.body.code !== 'bays_in_use' || stored !== 3 || winners.length !== 1 || !onBay3) bad.push(`run ${run}: save 409 ${saved.body.code} but bays ${stored}, ${winners.length} winners`)
+    } else {
+      bad.push(`run ${run}: save answered ${saved.status} ${saved.text}`)
+    }
+    for (const r of booked) {
+      if (r.status !== 201 && !(r.status === 409 && r.body.code === 'taken')) bad.push(`run ${run}: a booking answered ${r.status} ${r.text}`)
+    }
+  }
+  console.log(`BAYS-RACE outcomes=${outcomes.join(',')} bad=${bad.length}`)
+  assert.deepEqual(bad, [])
+  // Both ways must have happened, or this run only measured one side of the guard.
+  assert.ok(outcomes.some(o => o.startsWith('save200')), 'at least one run where the save won')
+  assert.ok(outcomes.some(o => o.startsWith('save409')), 'at least one run where a booking won')
+})
