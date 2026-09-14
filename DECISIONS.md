@@ -37,3 +37,19 @@ Alexander was asleep for this build; every real call is written here with its re
     end in "(sample)"; the sample closure is "Staff training (sample)". Never Warrior Automotive or any real shop.
 12. **Crew shape.** Two slices (rules allow at most two): bb1 Worker + D1 + slot maths + adapter, bb2 the three screens + Playwright.
     The lead owns the contract, README, deploy notes, QA and the real Shop Board round trip.
+
+## 2026-09-14, lead (after bb1 M2)
+
+13. **Real round trip verified 03:25 at `6e90d03`.** Book a Bay on 7308 with `SHOP_BOARD_URL` pointing at a throwaway local clone of
+    Shop Board (`25c6faa`, port 7306): a confirmed oil change at 9:30 pushed → 200, and Shop Board's day sheet shows it on the 9:00 row,
+    bay 1, est. 30m, issue "Oil change (booked online for 9:30 AM)", updated by "Book a Bay".
+14. **Shop Board holds one car per bay per hourly row, and that is not hidden.** A second confirmed job at 9:00 on the same bay maps
+    to the same Shop Board row, so its push answers `502 "Shop Board did not take it: 9:00 is taken"` and `pushed_at` stays empty. The
+    JSON/CSV export still lists both. Book a Bay does not quietly move the car to another Shop Board bay: that would misreport which bay
+    the shop planned. The shop moves it by hand in Shop Board, or Shop Board gains half-hour rows later.
+15. **bb1's M2 readings adopted** (API.md clarifications 8–15): a `rev` column ties hold changes to one transition; a test-only holds
+    route; `busy` vs `taken` offer refusals; rate-guard details; push/export behaviour; message wording.
+16. **Lowering bays while a booking is in flight must be closed, not documented** (API.md clarification 16). The window is milliseconds,
+    but the result would be a booking on a bay that no longer exists. Sent to bb1 as M3.
+17. **`npm run demo` runs the local Worker with `TEST_MODE=1`** so it can seed the SAMPLE week. That is fine on this computer and is
+    exactly what must never reach a deploy (docs/DEPLOY.md).
