@@ -95,3 +95,12 @@ Alexander was asleep for this build; every real call is written here with its re
     0.72 glass (and a 0.94 tint bb2 tried first) let bright text show. A check now requires the header to be ≥ 0.99 opaque with the
     header itself under its centre after scrolling; it was red on the real unfixed CSS (0.72) and red again for both weaker fixes.
     Shop Board's header is glass too and likely has the same issue on iPhone; noted for that project, not touched tonight.
+
+## 2026-09-14, lead (teardown)
+
+27. **`rig down` is not used on this project; teardown is by tab id.** Reading Rig's herdr driver before running it: `killSession()` closes
+    every tab in the workspace whose label matches `/^[a-z]\d+$/i` other than the lead's own, not just this plan's slice ids. Tonight's
+    workspace holds other crews' slice tabs (e.g. Grant Match NL's `gm…` tabs), so `rig down` here would close agents mid-work, and
+    another lead's `rig down` would close `bb1`/`bb2`. So the lead closes only the tabs labelled `bb1` and `bb2` (ids checked at the
+    time) and removes the worktrees with `git worktree remove`. The Rig fix (filter slice tabs by the plan's own ids) belongs to the Rig
+    project and was reported to Onyx rather than made here.
