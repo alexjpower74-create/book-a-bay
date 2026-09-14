@@ -1,0 +1,3 @@
+# wrangler dev logs and the throwaway copies the negative controls build and run
+.logs/
+.negative/

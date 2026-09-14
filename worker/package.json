@@ -1,0 +1,12 @@
+{
+  "name": "book-a-bay-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "migrate": "wrangler d1 migrations apply book-a-bay --local --persist-to .state-7302",
+    "dev": "npm run migrate && wrangler dev --local --port 7302 --inspector-port 7312 --persist-to .state-7302",
+    "test": "node tests/run.mjs",
+    "negative:race": "node tests/negative-race.mjs",
+    "negative:slots": "node tests/negative-slots.mjs"
+  }
+}
