@@ -6,7 +6,11 @@
     "migrate": "wrangler d1 migrations apply book-a-bay --local --persist-to .state-7302",
     "dev": "npm run migrate && wrangler dev --local --port 7302 --inspector-port 7312 --persist-to .state-7302",
     "test": "node tests/run.mjs",
+    "fake-shop-board": "node tests/fake-shop-board.mjs",
     "negative:race": "node tests/negative-race.mjs",
-    "negative:slots": "node tests/negative-slots.mjs"
+    "negative:status": "node tests/negative-status.mjs",
+    "negative:slots": "node tests/negative-slots.mjs",
+    "negative:shopboard": "node tests/negative-shopboard.mjs",
+    "negative": "node tests/negative-slots.mjs && node tests/negative-shopboard.mjs && node tests/negative-race.mjs && node tests/negative-status.mjs"
   }
 }
