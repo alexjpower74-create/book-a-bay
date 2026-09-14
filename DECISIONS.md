@@ -25,6 +25,10 @@ Alexander was asleep for this build; every real call is written here with its re
    adapter pushes to it server-side when `SHOP_BOARD_URL` is set, and also offers a JSON/CSV export. Shop Board's rows are fixed times
    (8:00…5:00 with two lunch rows) and its est. times are 30m…Day, so a 9:30 booking lands on the 9:00 row with "booked online for
    9:30 AM" in the issue. Tonight it is only ever tested against a local copy; never the live Shop Board (no deploys, nothing leaves).
+   *Verified by the lead 02:00 against a throwaway `git clone` of Shop Board at `25c6faa` running `wrangler dev --local` on 7306:*
+   `PUT /api/bookings/bab-probe01` with the mapped patch → 200 and the booking is on that day's sheet; a second id on the same
+   (date, slot, bay) → `409 {"error":"9:00 is taken","code":"taken","conflict":{…}}`. A longer job covering the row answers
+   `409 code "busy"` (read from its source). The Shop Board folder itself was never written to.
 9. **Test clock and test IP are headers honoured only when `TEST_MODE=1`.** The browser clock is never used for shop dates; the app
    takes today/now from the API, which also keeps a customer in another time zone on the shop's calendar.
 10. **15-minute cell grid.** Service durations and hours are on 15-minute marks; start times are offered every 15, 30 or 60 minutes
