@@ -69,3 +69,36 @@ test('Sunday is closed; the SAMPLE badge is on all three screens; primary button
   await badge(page)
   await primaryOk(page, page.locator('.pending article.req').first().getByRole('button', { name: 'Confirm' }), 'Confirm', testInfo)
 })
+
+// The M1 bug, guarded on its own: after an empty Send, WebKit parked the name field under the sticky header. tap() scrolls a
+// target out from under the header before hit-testing, so a tap on the field would hide that. Here nothing scrolls after
+// Send: the test only reads where the app put the field.
+test('after an empty Send, the name field is in view below the header (no test scrolling)', async ({ page }) => {
+  await page.goto('/')
+  await tap(page, page.locator('button.service', { hasText: 'Oil change' }), 'Oil change')
+  await tap(page, page.locator('button.day', { hasText: 'Sep 15' }), 'Tue Sep 15')
+  await tap(page, page.locator('button.time[data-time="10:00"]'), '10:00 AM')
+  await expect(page.getByRole('heading', { name: 'Your details' })).toBeVisible()
+  await tap(page, page.locator('#send'), 'Send request (empty)')
+  await expect(page.locator('#e-name')).toHaveText('Please enter your name.')
+  await expect(page.locator('#f-name')).toBeFocused()
+
+  await expect
+    .poll(
+      () =>
+        page.locator('#f-name').evaluate((el) => {
+          const r = el.getBoundingClientRect()
+          const x = r.left + r.width / 2
+          const y = r.top + r.height / 2
+          const headerBottom = document.querySelector('.bar').getBoundingClientRect().bottom
+          return {
+            hitsItself: document.elementFromPoint(x, y) === el,
+            belowHeader: y > headerBottom,
+            aboveScreenBottom: y < window.innerHeight,
+            at: `centre y ${Math.round(y)}, header bottom ${Math.round(headerBottom)}, screen ${window.innerHeight}`,
+          }
+        }).then(({ at, ...facts }) => ({ ...facts, at: facts.hitsItself && facts.belowHeader && facts.aboveScreenBottom ? 'ok' : at })),
+      { message: 'the first invalid field is where a person can see and tap it', timeout: 3000 },
+    )
+    .toEqual({ hitsItself: true, belowHeader: true, aboveScreenBottom: true, at: 'ok' })
+})

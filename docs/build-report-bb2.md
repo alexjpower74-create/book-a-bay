@@ -132,6 +132,44 @@ received/confirmed/declined, offered lists offered; text holds the bare `/r/?t=`
   `FAIL journey: locator.waitFor: Timeout 6000ms exceeded.` (390 and 1280: the pill never says Confirmed after the shop confirms),
   `83 passed, 2 failed`. Restored; the full real run is green again (above).
 
+## Guard for the M1 sticky-header bug that tap() could hide — DONE
+
+`tap()` scrolls a target out from under the sticky header before hit-testing (accepted in M2b). That means a test that taps the name field
+could no longer see the M1 WebKit bug, where the app parked the first invalid field under the header after an empty Send. A dedicated check now
+guards it, with no test scrolling after Send.
+
+**Test** `days.spec.mjs` › "after an empty Send, the name field is in view below the header (no test scrolling)", all 4 projects:
+- Real taps to the details step, then a tap on Send request with the form empty. That tap's own scroll only ever moves the Send button, before the app moves focus.
+- Checks: "Please enter your name." shows and `#f-name` is focused.
+- Then, only reading the page (polled up to 3 s, nothing scrolled by the test):
+  - `document.elementFromPoint` at the field's centre is the field itself;
+  - that centre is below the `.bar` header's bottom edge;
+  - and it is above the bottom of the screen.
+
+**Negative control:** `focusField` in `book.js` changed to a plain `el.focus()` (the `preventScroll` + `scrollIntoView({ block: 'center' })` removed), then the check run on all 4 projects:
+- **webkit-390: red**, as in M1:
+  ```
+  Error: the first invalid field is where a person can see and tap it
+  -   "at": "ok",
+  -   "belowHeader": true,
+  -   "hitsItself": true,
+  +   "at": "centre y 10, header bottom 47, screen 664",
+  +   "belowHeader": false,
+  +   "hitsItself": false,
+  ```
+- chromium-390, chromium-1280 and webkit-1280 stay green under the break: their plain `focus()` does not park the field under the header. The guard is therefore WebKit-phone specific, which is where the bug was.
+- Restored from the backup and checked with `cmp` (byte for byte). Before the break, the check passed on all 4 projects.
+
+**Numbers:** `npx playwright test`, real Worker on 7303, after the restore:
+
+| Project | Passed | Failed | Skipped |
+|---|---|---|---|
+| chromium-390 | 21 | 0 | 0 |
+| chromium-1280 | 21 | 0 | 0 |
+| webkit-390 | 21 | 0 | 0 |
+| webkit-1280 | 21 | 0 | 0 |
+| **Total** | **84** | **0** | **0** (5.9 min) |
+
 ## M4 follow-up — API.md clarifications 19–22 in the app — DONE
 
 Rebased on main (bb1 M4 merged: `/api/r/:token/days`, `/api/r/:token/slots`, `/api/shop/days`, `field: current` on the PIN 401).
