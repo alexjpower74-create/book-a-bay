@@ -44,6 +44,22 @@ under `worker/.state-demo/`.
 - **Real:** the slot maths, the race guard, the status flow, the .ics file, and the Shop Board adapter, which was tested against a
   local copy of the real Shop Board code (never the live Shop Board).
 
+## Screenshots
+
+Taken from `npm run demo` with real taps and typing: phone = WebKit iPhone 14 (390), desktop = Chromium 1280. All in `docs/shots/`.
+
+| | Phone (390) | Desktop (1280) |
+|---|---|---|
+| Pick a service | ![](docs/shots/customer-1-service-390.png) | ![](docs/shots/customer-1-service-1280.png) |
+| Pick a day (closed and full days greyed) | ![](docs/shots/customer-2-day-390.png) | ![](docs/shots/customer-2-day-1280.png) |
+| Request sent, with the status link | ![](docs/shots/customer-5-sent-390.png) | ![](docs/shots/customer-5-sent-1280.png) |
+| Status: new time offered | ![](docs/shots/status-offered-390.png) | ![](docs/shots/status-offered-1280.png) |
+| Status: confirmed, add to calendar | ![](docs/shots/status-confirmed-390.png) | ![](docs/shots/status-confirmed-1280.png) |
+| Shop: waiting for you + board by bay | ![](docs/shots/shop-board-390.png) | ![](docs/shots/shop-board-1280.png) |
+| Shop: settings | ![](docs/shots/shop-settings-390.png) | ![](docs/shots/shop-settings-1280.png) |
+
+Also in the folder: the time and details steps, Requested, the shop sign-in, and a full-length board.
+
 ## Tests
 
 See `docs/build-report.md` for the full numbers from the final QA run, every negative control and the known gaps.
