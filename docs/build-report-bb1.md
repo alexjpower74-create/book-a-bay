@@ -352,3 +352,61 @@ Rebased onto main first (4655f89). Ports 7302, 7304 and 7305 only. bb2's third f
   (`GET /api/r/<token>/nope`) or a wrong method (`DELETE /api/r/<token>`), still gets the router's generic
   `404 {"error":"Not found.","code":"not_found"}`. The app never builds those links. If you want them covered too, a
   second-segment catch-all can be added without weakening this control, because `GET /api/r/nope` has no second segment.
+
+---
+
+# Cross-review of bb2 M2 (bb1, 2026-09-14, read only)
+
+**What I read:** bb2's committed M2 at **408eaf5**: `app/public/api.js`, `shop.js`, `shop-settings.js`, `book.js`, `status.js`, `ui.js`, all read with
+`git show`. No servers, no tests, no ports: the lead's QA holds them. `rig/bb2` now points at 5921f00, a rewrite of the same M2 commit.
+`git diff 408eaf5 rig/bb2 -- app/public` is empty, so every line below is still live on bb2's branch.
+
+**What I compared against:** my Worker at 8e71df5 (`worker/src/index.js`) and API.md clarifications 1–18. For each call: method, path, body keys, query, Bearer
+header, how the success body is read, and how each refusal is read.
+
+## Mismatches
+
+| # | bb2 code (408eaf5) | What the app does | What my Worker does | Fix | For |
+|---|---|---|---|---|---|
+| 1 | `shop.js:430` (`loadOfferDays`) and `status.js:71` (`loadPickDays`) | The shop's "Offer another time" picker and the customer's "Pick another time" picker get their day list from the **customer** `GET /api/days?service=<request's service id>` | `/api/days` accepts only an **active** service (`activeService`, index.js:89). Once the shop takes a service offline, both pickers stop at `400 "Please pick a service."`. Yet `offer`, `repick` and `/api/shop/slots?exclude=` all work from the request's own service snapshot (my M2 test "editing or deactivating a service never changes an existing request" moves such a request). The screens cannot reach a move the API allows. | **Contract gap, lead's call.** Proposal: `GET /api/shop/days?exclude=<request id>` (shop) and `GET /api/r/:token/days` (customer), using the request's snapshot and treating its own hold as free, with the same day shape as `/api/days`. bb1 builds them with tests; bb2 switches the two pickers. Until then, bb2 can show the 400 text in the picker (it already does) and nothing breaks silently. | lead, then bb1 + bb2 |
+| 2 | `status.js:80` (`loadPickSlots`) | The customer's repick times come from `GET /api/slots` | `/api/slots` counts the request's **own** hold, while `POST /api/r/:token/repick` treats it as free (`moveHold` `exclude`). A time only the customer's current booking is blocking (moving 30 minutes later on the last free bay, for example) is accepted by repick but never offered in the picker. Nothing wrong gets booked, but a valid move is hidden. | Same gap as #1: `GET /api/r/:token/slots?date=` with the own hold excluded. | lead, then bb1 + bb2 |
+| 3 | `shop.js:368` block-out form | `<input name="label" maxlength="60">` | `createBlock` refuses a label over **40** characters: `400 field: label`, "Give the block-out a short name, up to 40 characters." API.md does not state the limit. | bb2: `maxlength="40"` (the refusal already shows in the form, so today it fails politely). Lead: write "label 1–40" into API.md next to blocks. | bb2 (+ lead doc) |
+| 4 | `api.js:63` and `shop-settings.js:223–224` (Change PIN) | A 401 from `PUT /api/shop/pin` never signs the shop out, on purpose, so a wrong current PIN stays on the form | That route answers 401 for **two** reasons with the same `code: "unauthorized"`: a wrong current PIN ("That PIN is not right.") and an expired or ended session ("Please sign in again.", from `requireShop`, before the PIN is checked). With a dead session the form shows "Please sign in again." but the shop stays on a signed-in screen until its next board call. | bb2: on a 401 from `/api/shop/pin`, sign out unless `error === "That PIN is not right."`. Or, if the lead prefers not to match text, bb1 adds `field: "current"` to the wrong-PIN 401 (additive) and bb2 keys on that. | bb2 (or lead → bb1) |
+| 5 | `shop.js:176`, `shop.js:573` | Confirmed cards always show "Send to Shop Board"; after a push only a temporary "Sent to Shop Board." message appears | The shop view carries `pushed_at` (set only on a 200 push) | bb2: show "Sent to Shop Board <time>" from `pushed_at`, so a reload or a second device can see it went. A repeat push is harmless (same id; Shop Board overwrites the fields). | bb2 (low) |
+
+## Checked and matching (no change)
+
+- **api.js.** Every path and method matches API.md. Bearer goes on `/api/shop/*` except `/api/shop/signin`; `/api/shop` (customer) correctly gets none.
+  `ApiError` keeps `error`, `code`, `field` and the whole body. Network failure is its own message.
+- **book.js.** `POST /api/requests` body is `service, date, time, name, phone, year, make, model, note`, trimmed. The client rules match `validateCustomer`
+  (the phone's 7+ digits imply 7+ characters). `taken` reads `body.next`, and each alternative's `dayLabel` from `label.split(',')[0]` matches my label format.
+  A 400 on a customer field goes to that field. A 400 on `service`, `date` or `time` offers the way back (clarification 3). `429 rate_limited` shows its text.
+- **status.js.** View, accept, repick `{date, time}`, cancel. `taken` + `next` on repick. A 404 on the view replaces the page with the booking text (clarification 18).
+  `bad_state` shows its text and re-reads. "Add to calendar" is a plain link to `ics_url` (customer route, no header needed). The offer shows `label`/`time`/`end` only, correct for the customer view.
+- **shop.js board.** `GET /api/shop/board?[date=]&days=1|7`; the first load omits `date` and the Worker defaults to today. `from`, `to`, `today`, `bays` and `hours` come from
+  the response, never the browser clock. `place()` puts an offered request at `offer.time`/`offer.end` on `offer.bays` (clarifications 5 and 17), falling back to `bays`
+  on an older Worker. The texts use `fullLink(text, status_url)` (clarification 4).
+- **shop.js actions.** Confirm `{}`; decline/cancel `{note}` only when there is one (the Worker keeps an existing note on `COALESCE`); offer `{date, time, note?}`
+  after `/api/shop/slots?service=&date=&exclude=<id>` (the Worker uses the snapshot when `exclude` is set). `busy`/`taken` on offer show the text
+  and reload the slots; `next` is not shown, which is fine because the reloaded list is current. `push` shows the 501 text ("Shop Board is not connected yet. Use "Download
+  for Shop Board" instead.") and the 502 text ("Shop Board did not take it: …") as is.
+- **Export.** `api.exportShopBoard` fetches `/api/shop/export/shop-board?from=&to=&format=` **with the Bearer header**, then saves a blob (decision 8). A 401 there signs out.
+- **Blocks.** Body `{date, time, end, bays: 'all' | [n…], label}` on quarter-hour marks, date ≥ board `today`. A `busy` refusal lists `conflicts[].name`,
+  `label` and `bays`, the exact shape my Worker sends. DELETE shows its 404 text.
+- **Sign-in and sign-out.** Wrong PIN 401 and 429 show their text without signing out. Signout clears the token even if the call fails. A dead session anywhere else
+  fires `SIGNED_OUT` with the Worker's "Please sign in again."
+- **Settings PUT body vs `validateSettings`.** It sends the whole GET object back (no `pin`, `timezone` included), with numbers from selects: bays 1–10, step
+  15/30/60, lead 0–2880, max 1–10, window 7–60. `hours` has all seven keys, `null` for Closed and quarter-hour `HH:MM` from 05:00–23:00. `closures` come
+  from `<input type=date>` with reason `maxlength=60`. New service ids are a slug of the name, cut to 28 characters plus `-n` to stay unique, which fits `[a-z0-9-]{1,32}`.
+  `bays_needed` offers 1..bays, and `active` is a boolean.
+- **Refusal → section (`shop-settings.js:9–17`).** `bays_in_use` goes to Booking rules. A `field` starting with `services`, `hours` or `closures` goes to that section;
+  `shop_name`, `timezone`, `bays`, `slot_step_min`, `lead_time_min`, `max_per_slot` or `window_days` go to Booking rules; anything else goes to the top.
+  These are exactly the field names my Worker uses, so every refusal lands on the section that caused it. The one case that reads slightly off:
+  lowering Bays below a service's `bays_needed` is refused as `field: services` ("Truck or RV service needs 1 to 2 bays."), so the message
+  appears under Services, not beside the Bays select. It names the service, so it stays understandable. Optional for bb2: also scroll to Services.
+
+## For bb1
+
+Nothing in my Worker is wrong against the contract, so **no Worker change and no new control** from this review. Findings 1 and 2 need new
+routes, which is an API.md change and the lead's call. If adopted, I will build them with tests and a negative control. Finding 4's `field: "current"` is a
+one-line additive change, if the lead prefers it to bb2 matching the error text.
