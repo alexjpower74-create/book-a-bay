@@ -74,7 +74,9 @@ a { color: var(--accent); text-decoration: none; }
 .glass { background: var(--surface); backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%); border: 1px solid var(--line); box-shadow: var(--glow), var(--shadow-2); }
 
 /* ---- header ------------------------------------------------------------ */
-.bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 24px; border-radius: 0; border-width: 0 0 1px; box-shadow: none; }
+/* The sticky header sits over scrolled content, so it is solid Cosmic ground (--bg-2), not glass. WebKit on a phone does not blur
+   behind it, and both the 0.72 glass and a 0.94 tint still let bright text read through. */
+.bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 24px; border-radius: 0; border-width: 0 0 1px; box-shadow: none; background: #0d1425; }
 .bar h1 { margin: 0; display: flex; align-items: center; gap: 10px; font-family: var(--display); font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
 .bar h1 .mark { background: linear-gradient(90deg, #c7d2fe, #a5b4fc 40%, #67e8f9); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .bar h1::before { content: ''; width: 26px; height: 26px; border-radius: 8px; flex: 0 0 auto; background: conic-gradient(from 210deg, #22d3ee, #6366f1, #a855f7, #22d3ee); box-shadow: 0 0 18px rgba(99, 102, 241, 0.55), inset 0 0 0 1px rgba(255,255,255,0.25); }
