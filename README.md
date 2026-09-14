@@ -62,7 +62,17 @@ Also in the folder: the time and details steps, Requested, the shop sign-in, and
 
 ## Tests
 
-See `docs/build-report.md` for the full numbers from the final QA run, every negative control and the known gaps.
+Final QA at `a4d1205`, in a worktree pinned to that commit, one run, nothing re-run to get green:
+
+| Suite | Passed | Failed | Skipped |
+|---|---|---|---|
+| Worker unit (slot maths, Shop Board mapping and contract) | 20 | 0 | 0 |
+| Worker API against a local Worker | 36 | 0 | 0 |
+| Playwright: chromium 390, chromium 1280, webkit 390 (iPhone 14), webkit 1280 | 100 (25 each) | 0 | 0 |
+
+Every important check was made to fail on purpose: 11 negative controls in the Worker (all red, e.g. without the race guard 8 of 8
+customers booked the one place), the app's own controls, and the lead's broken-label control in the final run (red). Full numbers, every
+control and the known gaps: `docs/build-report.md`.
 
 ```sh
 npm run test:worker        # slot maths + adapter unit tests, then the API suite against a local Worker (7302)

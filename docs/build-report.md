@@ -53,55 +53,18 @@ body against `validateSettings`. It found 5 gaps, all adopted (API.md 19–22, D
 day and time lists (broken once a service is taken offline, and hiding times blocked only by the request's own booking), the block label
 limit, the PIN-change 401 ambiguity, and `pushed_at` not shown. bb1 built the routes in M4; bb2 switches the screens.
 
-## Known limits so far
+## Known limits and gaps
 
 - **The bays-in-flight control needs stand-in latency.** Local D1 answers in about a millisecond, so without an added 25 ms wait in
-  the test copies the unguarded code never double-booked in 20 runs. The guard exists for production round trips; the control shows
-  that with realistic latency it is the only thing preventing the bad ending.
-- **Shop Board holds one car per bay per hourly row** (DECISIONS.md 14); the second car in that hour is refused with Shop Board's message.
+  the test copies the unguarded code never double-booked in 20 runs. The guard exists for production round trips; with realistic
+  latency the control shows it is the only thing preventing the bad ending.
+- **Shop Board holds one car per bay per hourly row** (DECISIONS.md 14); the second car in that hour on that bay is refused with Shop
+  Board's own message and stays in the JSON/CSV export.
+- **Test exceptions** (DECISIONS.md 23–25): `tap()` scrolls a target out from under the sticky header (a dedicated no-scroll check
+  guards the one bug that hides); native dropdowns use `selectOption`; one test injects `pushed_at` because the test Worker has no
+  Shop Board.
+- **Nothing is sent and nothing is deployed.** No SMS or email (the shop copies texts); `docs/DEPLOY.md` is a checklist that has not run.
+- **One deployment per shop** (DECISIONS.md 1); multi-shop hosting is not built.
+- **Shop Board's own header is glass** and very likely reads through on iPhone the way Book a Bay's did; not touched (another project).
+- `rig down` was not used: its tab filter does not see two-letter slice ids, so the lead closed `bb1`/`bb2` by tab id (DECISIONS.md 27).
 - Pending requests created in the same millisecond order by id.
-
-## Final QA — `687f5dc` (main after every merge), 2026-09-14 ~05:15
-
-Pinned QA worktree, port 7309, one run of everything, nothing re-run to get green. (An earlier full run at `85d970d` was also
-all green, 140/0/0; the lead's curated screenshots then found the see-through phone header, bb2 fixed it with a check that can fail,
-and this run at `687f5dc` is the one the pushed code carries.)
-
-| Suite | Passed | Failed | Skipped |
-|---|---|---|---|
-| Worker unit (slot maths, Shop Board mapping, fake Shop Board contract) | 20 | 0 | 0 |
-| Worker API against `wrangler dev --local` (TEST_MODE) | 36 | 0 | 0 |
-| Playwright chromium-390 (touch) | 24 | 0 | 0 |
-| Playwright chromium-1280 | 24 | 0 | 0 |
-| Playwright webkit-390 (iPhone 14) | 24 | 0 | 0 |
-| Playwright webkit-1280 | 24 | 0 | 0 |
-| **Total** | **152** | **0** | **0** |
-
-Playwright took 6.2 minutes, 0 flaky. The 24 tests per project cover:
-- **Customer:** the full journey (customer books → shop confirms → status page shows Confirmed without a reload) and the .ics file.
-- **Race:** two customers racing for one slot.
-- **Moving a booking:** offer → accept, and move from the request's own snapshot after its service goes offline.
-- **Sign-in:** wrong PIN (UI text and 401), sign in and out, and Change PIN after the session died elsewhere.
-- **Shop actions:** decline with a note, cancel frees the time, block out and remove, and the Settings refusal inline then save.
-- **Shop Board:** the not-connected message, "Sent to Shop Board <time>", and the JSON and CSV download.
-- **Board behaviour:** the poll never redraws an open picker, and the phone layout (board within two screens, one-row header).
-- **Page checks:** closed Sunday, SAMPLE on all three screens, 44 px legible buttons that hit-test to themselves, and the name field visible
-  below the header after an empty Send.
-- **Sticky header:** solid after scrolling on the customer, status and shop pages (≥ 0.99 opaque, the header itself under its centre).
-
-**Negative controls:** `npm run negative` ran all eleven breaks and every one was **RED as expected** (race 8 winners, status race,
-bays-in-flight with a guarded control, closures, bays, mapping, lenient fake, offer bays, token pattern, own-hold slots, PIN field).
-
-**Lead's own browser control in the same run:** in the QA worktree `app/public/ui.js` had `confirmed: { label: 'Confirmed'` turned into
-`'Requested'` (exactly one occurrence). `journey.spec.mjs --project chromium-390` then went **red**:
-`Error: expect(locator).toHaveText(expected) failed · Expected: "Confirmed" · Received: "Requested"` (1 failed, 1 passed; same result
-at `85d970d` and `687f5dc`). The file was
-restored from a copy and `git diff` on it is empty.
-
-**The slices' own controls** (each broken, seen red, restored; red output in their reports):
-- status label, overlay over Send, old gradient contrast, and a bare message link;
-- the board poll redrawing an open picker (red on all 4 projects), and the export without the token;
-- every text group open (board 1,985 px down), and a customer picker back on `/api/slots`;
-- the name field under the header (plain `focus()`, red on webkit-390, where the bug lived);
-- the see-through header (old glass background, and a 0.94 tint: both 12 of 12 red; the unfixed CSS read 0.72);
-- the clock guard.
