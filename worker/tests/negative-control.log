@@ -1,0 +1,126 @@
+
+=== negative:race 2026-09-14T05:12:22.531Z (HEAD 6de8252, working tree) ===
+break: RACE-GUARD region -> unguarded SELECT check, await scheduler.wait(25), INSERTs one by one; UNIQUE indexes cells_unique and starts_unique dropped
+started the broken copy on http://127.0.0.1:7305
+RACE winners=8 losers=0 statuses=201,201,201,201,201,201,201,201
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (297.630539ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 355.576297
+
+✖ failing tests:
+
+test at tests/api.test.mjs:235:1
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (297.630539ms)
+  AssertionError [ERR_ASSERTION]: exactly one 201, got 8
+  
+  8 !== 1
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/race/tests/api.test.mjs:252:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. Without the batch + UNIQUE guard 8 customers all got a 201 for the one free place. The race test measures the guard.
+
+=== negative:slots a-closures 2026-09-14T05:12:28.534Z (HEAD 6de8252, working tree) ===
+control (unbroken copy): "a closure date is closed with its reason" exit 0
+break: src/slots.js: const closure = (settings.closures || []).find(c => c.date === date)  ->  const closure = undefined /* NEGATIVE CONTROL (a): closures ignored */
+✖ a closure date is closed with its reason (3.071364ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.949443
+
+✖ failing tests:
+
+test at tests/slots.test.mjs:76:1
+✖ a closure date is closed with its reason (3.071364ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   hours: {
+  +     close: '17:00',
+  +     open: '08:00'
+  +   },
+  +   open: true,
+  +   reason: null
+  -   hours: null,
+  -   open: false,
+  -   reason: 'Staff training (sample)'
+    }
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/a-closures/tests/slots.test.mjs:79:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { open: true, reason: null, hours: { open: '08:00', close: '17:00' } },
+    expected: { open: false, reason: 'Staff training (sample)', hours: null },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "a closure date is closed with its reason" fails when dayInfo ignores settings.closures.
+
+=== negative:slots b-bays 2026-09-14T05:12:28.753Z (HEAD 6de8252, working tree) ===
+control (unbroken copy): "the bay-count change" exit 0
+break: src/slots.js: for (let bay = 1; bay <= bayCount; bay++)  ->  for (let bay = 1; bay <= 10 /* NEGATIVE CONTROL (b): bay count ignored */; bay++)
+✖ the bay-count change: capacity follows settings.bays, not the bays that happen to hold time (14.255855ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 77.255797
+
+✖ failing tests:
+
+test at tests/slots.test.mjs:94:1
+✖ the bay-count change: capacity follows settings.bays, not the bays that happen to hold time (14.255855ms)
+  AssertionError [ERR_ASSERTION]: bays: 2 -> 10:00 is gone
+  + actual - expected
+  
+  + {
+  +   bays: [
+  +     3
+  +   ],
+  +   end_min: 630,
+  +   label: '10:00 AM',
+  +   start_min: 600,
+  +   time: '10:00'
+  + }
+  - undefined
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/b-bays/tests/slots.test.mjs:97:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: { time: '10:00', label: '10:00 AM', start_min: 600, end_min: 630, bays: [ 3 ] },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. "the bay-count change" fails when pickBays ignores settings.bays (always looks at 10 bays).
