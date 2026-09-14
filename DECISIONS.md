@@ -53,3 +53,13 @@ Alexander was asleep for this build; every real call is written here with its re
     but the result would be a booking on a bay that no longer exists. Sent to bb1 as M3.
 17. **`npm run demo` runs the local Worker with `TEST_MODE=1`** so it can seed the SAMPLE week. That is fine on this computer and is
     exactly what must never reach a deploy (docs/DEPLOY.md).
+
+## 2026-09-14, lead (after bb2 M2)
+
+18. **The primary button is darker than Shop Board's.** bb2 measured Shop Board's `#6366f1 → #8b5cf6` gradient at 4.47 : 1 and 4.2 : 1
+    against white text, under the 4.5 : 1 minimum for normal text. Book a Bay uses `#4f46e5 → #7c3aed` (6.3 and 5.7 : 1), and a test
+    checks every gradient stop. Still the same indigo-violet family, so the two products read as one; Shop Board itself should take the
+    same fix (not touched tonight: another project's folder).
+19. **No test may skip itself because a route is missing once every route exists.** bb2's M2 specs skipped while bb1's M2 routes were
+    not yet on its branch. That was right for a few hours and would be a check that cannot fail afterwards, so the skip helper is removed
+    before the final QA, and the final run must report 0 skipped.
