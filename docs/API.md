@@ -218,3 +218,24 @@ These are bb1's readings of the contract, reviewed and adopted. Both slices foll
    statements only take effect if the status transition itself happened (a conditional UPDATE that changes 0 rows does not abort a
    batch, so the deletes/inserts must be conditional on the new status). Two shop taps at once (Confirm + Decline) end with a
    request whose holds match its status: holding status ⇔ cells present.
+
+## Clarifications (lead, after bb1 M2, 2026-09-14 03:20)
+
+8. **`requests.rev`** (migration `0003`): every status change stamps a fresh random `rev`, and every hold DELETE/INSERT in that batch
+   is conditional on that exact `rev`, so holds follow only the transition that actually happened.
+9. **Test-only `GET /api/test/holds?owner=r:<id>`** returns the raw `cells` and `starts` rows. 404 without `TEST_MODE=1`.
+10. **Offer refusals.** No free bay set at that time → `409 busy` + `conflicts` (the holds in the way). Bays free but the start is full,
+    inside the lead time, or lost to a race → `409 taken` + `next`. A repick refusal is always `taken` + `next`.
+11. **Shop-side offer times follow the customer rules** (window, lead time, per-slot cap); `exclude` frees only that request's own hold.
+12. **Rate guards.** A request counts only after it passes validation. A wrong PIN counts on sign-in and on PIN change; the right PIN does
+    not clear the count, so a 6th try inside 15 minutes is 429 even when correct. A PIN change ends every other session.
+13. **Push.** 200 → `pushed_at` set. Shop Board refused → `502 shop_board_error`, `error` = `"Shop Board did not take it: <its error>"`,
+    its untouched body in `shop_board.body`. Unreachable → 502 with `shop_board.status: 0`. No URL → `501 not_configured`,
+    `"Shop Board is not connected yet. Use \"Download for Shop Board\" instead."`
+14. **Export needs the Bearer token** like every shop route, so the app fetches it with the header and saves the blob (a plain link
+    cannot send the header). Defaults: `from` = today, `to` = `from` + 59 days, `format` = `json`.
+15. **Message wording**: received "We got your request for Brakes on …", confirmed "Your Brakes booking is confirmed for …",
+    declined "Sorry, we can't fit in your Brakes booking on …", offered "We can't do … for your Brakes booking, but we can take you on …".
+16. **Lowering bays vs a booking in flight (required, bb1 M3).** The booking and move batches must also refuse, inside the same
+    transaction, when a bay they write is above the bay count stored at commit time. Either the settings save commits first and the
+    booking re-reads and retries, or the booking commits first and the save answers `bays_in_use`. Never both.
