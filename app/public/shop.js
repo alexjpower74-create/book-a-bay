@@ -25,6 +25,7 @@ const b = {
   recent: [], // requests just acted on, so their new texts are at hand
   cardMsg: {}, // request or block id -> { kind: 'ok' | 'error', text }
   exportMsg: '',
+  texts: {}, // `${ctx}:${id}` -> texts open (true) or folded (false), once the shop has tapped the toggle
 }
 let seq = 0
 let offerSeq = 0
@@ -41,7 +42,14 @@ function render() {
   signoutBtn.hidden = !signedIn
   for (const t of nav.querySelectorAll('button')) t.setAttribute('aria-selected', String(t.dataset.view === app.view))
   if (!signedIn) return renderSignin()
-  if (app.view === 'settings') return mountSettings(root)
+  if (app.view === 'settings') {
+    mountSettings(root)
+    // On a phone the header has no room for Sign out, so it lives here.
+    root.insertAdjacentHTML('beforeend', `<section class="panel glass phone-only signout-panel"><h3>This phone</h3>
+      <p class="sub">Sign out when you are done, so nobody else sees customers' details.</p>
+      <button type="button" class="btn big wide" id="signout-phone">Sign out</button></section>`)
+    return
+  }
   renderBoard()
 }
 
@@ -183,21 +191,34 @@ function requestCard(r, ctx) {
     </header>
     <h4>${esc(c.name)}</h4>
     <p class="meta"><span class="svc" data-band="${band(r.service.minutes)}">${esc(r.service.name)}</span> · ${duration(r.service.minutes)}${vehicle ? ` · ${esc(vehicle)}` : ''}</p>
-    <p class="meta"><a href="tel:${esc(String(c.phone || '').replace(/[^0-9+]/g, ''))}">${esc(c.phone)}</a>${where.bays.length ? ` · Bay ${where.bays.join(' + ')}` : ''}</p>
+    <div class="meta-row"><p class="meta"><a href="tel:${esc(String(c.phone || '').replace(/[^0-9+]/g, ''))}">${esc(c.phone)}</a>${where.bays.length ? ` · Bay ${where.bays.join(' + ')}` : ''}</p>${textsToggle(r, ctx)}</div>
     ${r.status === 'offered' && r.offer ? `<p class="offered">Offered <b>${esc(r.offer.label)}</b>. Waiting on the customer.</p>` : ''}
     ${c.note ? `<p class="note">${esc(c.note)}</p>` : ''}
-    ${r.shop_note ? `<p class="meta">Your note: ${esc(r.shop_note)}</p>` : ''}
+    ${r.shop_note ? `<p class="meta shop-note-line">Your note: ${esc(r.shop_note)}</p>` : ''}
     ${msg ? (msg.kind === 'ok' ? `<div class="okmsg" role="status">${esc(msg.text)}</div>` : alertBox(msg.text)) : ''}
     ${acts.length ? `<div class="actions">${acts.join('')}</div>` : ''}
     ${open === 'decline' || open === 'cancel' ? notePanel(r, open) : ''}
     ${open === 'offer' ? offerPanel(r) : ''}
-    ${textsBlock(r)}
+    ${textsBlock(r, ctx)}
   </article>`
 }
 
-function textsBlock(r) {
+// Texts fold behind one button per card, so a phone reaches the board without scrolling past every text. A Just done card
+// opens them: that is the moment the shop sends one.
+const textsOpen = (ctx, id) => {
+  const key = `${ctx}:${id}`
+  return key in b.texts ? b.texts[key] : ctx === 'recent'
+}
+
+// The toggle shares the phone/bay row, so a folded card spends no extra row on its texts.
+function textsToggle(r, ctx) {
   if (!r.messages?.length) return ''
-  return `<div class="texts"><p class="eyebrow">Texts to send from your phone</p>${r.messages
+  return `<button type="button" class="btn quiet texts-toggle" data-act="texts" aria-expanded="${textsOpen(ctx, r.id)}">${icon.chevron}Texts to send (${r.messages.length})</button>`
+}
+
+function textsBlock(r, ctx) {
+  if (!r.messages?.length || !textsOpen(ctx, r.id)) return ''
+  return `<div class="texts">${r.messages
     .map(
       (m) => `<div class="text-row"><div class="text-body"><b>${esc(m.label)}</b><p>${esc(fullLink(m.text, r.status_url))}</p></div>
         <button type="button" class="btn copy" data-act="copy-text" data-key="${esc(m.key)}">Copy text</button></div>`,
@@ -257,7 +278,7 @@ function boardSection(d) {
       <span class="grow"></span>
       <div class="board-tools">
         ${btn('block-open', 'Block out time')}
-        <button type="button" class="btn quiet" data-export="json">Download for Shop Board (JSON)</button>
+        <button type="button" class="btn quiet" data-export="json"><span>Download<span class="long"> for Shop Board</span> (JSON)</span></button>
         <button type="button" class="btn quiet" data-export="csv">CSV</button>
       </div>
     </div>
@@ -365,7 +386,7 @@ function blockForm(d) {
       <div class="field"><label for="bf-date">Day</label><input type="date" id="bf-date" name="date" min="${esc(d.today)}" value="${esc(f.date)}"></div>
       <div class="field"><label for="bf-time">From</label><select id="bf-time" name="time">${options(f.time)}</select></div>
       <div class="field"><label for="bf-end">To</label><select id="bf-end" name="end">${options(f.end)}</select></div>
-      <div class="field"><label for="bf-label">Label</label><input id="bf-label" name="label" maxlength="60" value="${esc(f.label)}"></div>
+      <div class="field"><label for="bf-label">Label</label><input id="bf-label" name="label" maxlength="40" value="${esc(f.label)}"></div>
     </div>
     <fieldset class="baypick"><legend>Bays</legend>
       <label class="check"><input type="checkbox" name="all"${f.all ? ' checked' : ''}> All bays</label>
@@ -569,6 +590,9 @@ root.addEventListener('click', async (e) => {
       setTimeout(() => { if (t.isConnected) t.textContent = 'Copy text' }, 2500)
       return
     }
+    case 'texts':
+      b.texts[`${ctx}:${id}`] = !textsOpen(ctx, id)
+      return renderBoard()
     case 'push':
       return simple(() => api.push(id), id, { ok: 'Sent to Shop Board.' })
     case 'dismiss':
@@ -633,13 +657,17 @@ nav.addEventListener('click', (e) => {
   if (app.view === 'board') loadBoard()
 })
 
-signoutBtn.addEventListener('click', async () => {
+async function signOut() {
   try { await api.signout() } catch {}
   session.clear()
-  Object.assign(b, { data: null, recent: [], cardMsg: {}, menu: null, open: null, offer: null })
+  Object.assign(b, { data: null, recent: [], cardMsg: {}, texts: {}, menu: null, open: null, offer: null })
   app.signinError = ''
   app.view = 'board'
   render()
+}
+signoutBtn.addEventListener('click', signOut)
+root.addEventListener('click', (e) => {
+  if (e.target.closest('#signout-phone')) signOut()
 })
 
 window.addEventListener(SIGNED_OUT, (e) => {

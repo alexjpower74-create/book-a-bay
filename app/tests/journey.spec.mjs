@@ -1,7 +1,7 @@
 // The whole journey with real input: a customer books, the shop confirms on its own screen, and the customer's open
 // status page turns Confirmed by itself (its 15 s poll) with an Add to calendar link.
 import { test, expect } from '@playwright/test'
-import { fresh, tap, type, api, shot, shopToken, newContext, signInThroughPage, needsRoute } from './helpers.mjs'
+import { fresh, tap, type, api, shot, shopToken, newContext, signInThroughPage } from './helpers.mjs'
 
 test.beforeEach(async ({ context, request }) => fresh(context, request))
 
@@ -42,7 +42,9 @@ test('customer books → shop confirms → status page shows Confirmed', async (
   await expect(card).toBeVisible()
   await expect(card).toContainText('Tue Sep 15, 10:00 AM')
   await expect(card).toContainText('2016 Toyota Corolla')
-  // Texts carry the full status link, not the bare path (clarification 4).
+  // Texts sit folded behind one button on a pending card; they carry the full status link, not the bare path (clarification 4).
+  await expect(card.locator('.text-row')).toHaveCount(0)
+  await tap(shop, card.getByRole('button', { name: 'Texts to send (3)' }), 'Texts to send')
   const confirmText = card.locator('.text-row', { hasText: 'Text to confirm' })
   await expect(confirmText.locator('p')).toContainText(`Details: ${link}`)
   const copy = confirmText.getByRole('button', { name: 'Copy text' })
@@ -72,7 +74,6 @@ test('the Add to calendar link returns text/calendar', async ({ page, request },
   const board = await api(request, 'GET', '/api/shop/board?days=7', null, { Authorization: `Bearer ${token}` })
   const id = board.body.pending.find((r) => r.status_url === made.body.status_url).id
   expect((await api(request, 'POST', `/api/shop/requests/${id}/confirm`, {}, { Authorization: `Bearer ${token}` })).status).toBe(200)
-  await needsRoute(request, 'GET', `/api/r/${made.body.token}/ics`, 'GET /api/r/:token/ics')
 
   await page.goto(made.body.status_url)
   const link = page.locator('#add-to-calendar')

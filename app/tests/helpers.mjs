@@ -1,6 +1,6 @@
 // Shared test helpers. REAL input only: tap() hit-tests the target's centre with elementFromPoint before a real
 // touch or click, typing is page.keyboard, and evaluate is only ever used to read.
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,8 +28,15 @@ export async function newContext(browser, testInfo) {
 export async function tap(page, locator, label = String(locator)) {
   await expect(locator).toBeVisible()
   await locator.scrollIntoViewIfNeeded()
-  const box = await locator.boundingBox()
+  let box = await locator.boundingBox()
   expect(box, `tap(${label}): no box`).not.toBeNull()
+  // "In view" to Playwright includes under the sticky header, where a person could not tap it; a person would scroll it
+  // down first, so do that (only in that case). Anything else on top still fails the hit-test below.
+  const headerBottom = await page.evaluate(() => document.querySelector('.bar')?.getBoundingClientRect().bottom ?? 0)
+  if (box.y + box.height / 2 < headerBottom) {
+    await locator.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+    box = await locator.boundingBox()
+  }
   const x = box.x + box.width / 2
   const y = box.y + box.height / 2
   const hit = await locator.evaluate((el, [px, py]) => {
@@ -60,22 +67,27 @@ export async function shopToken(request) {
   return r.body.token
 }
 
-// A step that needs a route bb1 adds in M2: skip with a plain reason while the route answers 404, run it once it exists.
-export async function needsRoute(request, method, url, reason) {
-  const r = await request.fetch(url, { method, headers: clock, data: method === 'GET' ? undefined : {} })
-  const missing = r.status() === 404 && /"Not found\."/.test(await r.text())
-  test.skip(missing, `waiting on bb1 M2: ${reason}`)
+// Sign out the way a person would: the header button on a wide screen, Settings on a phone.
+export async function signOutThroughPage(page) {
+  if (await page.locator('#signout').isVisible()) return tap(page, page.locator('#signout'), 'Sign out')
+  await tap(page, page.getByRole('tab', { name: 'Settings' }), 'Settings')
+  await tap(page, page.locator('#signout-phone'), 'Sign out (Settings)')
 }
 
 export async function shot(page, testInfo, name) {
   await page.evaluate(() => document.fonts.ready)
   const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches)
+  // Back to the top so sticky parts are not painted mid-page in a full-page picture. A real wheel where there is one;
+  // touch projects have no wheel in Playwright, so there (screenshot staging only, after every check) scroll directly.
   if (!coarse) {
     await page.mouse.move(200, 200)
     for (let i = 0; i < 6 && (await page.evaluate(() => window.scrollY)) > 0; i++) {
       await page.mouse.wheel(0, -4000)
       await page.waitForTimeout(120)
     }
+  } else {
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.waitForTimeout(120)
   }
   await page.screenshot({ path: path.join(SHOTS, `${testInfo.project.name}-${name}.png`), fullPage: true, animations: 'disabled' })
 }

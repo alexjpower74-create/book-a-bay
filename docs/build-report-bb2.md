@@ -132,7 +132,87 @@ received/confirmed/declined, offered lists offered; text holds the bare `/r/?t=`
   `FAIL journey: locator.waitFor: Timeout 6000ms exceeded.` (390 and 1280: the pill never says Confirmed after the shop confirms),
   `83 passed, 2 failed`. Restored; the full real run is green again (above).
 
-## M2 — shop side and the Playwright suite — DONE (six tests waiting on bb1 M2 routes)
+## M2b — every shop screen on the real M2 Worker, 0 skipped — DONE
+
+Rebased on main (bb1 M2 + M3 merged; API.md clarifications 8–18). `needsRoute` and every call to it are deleted (DECISIONS 19);
+`grep -rn "needsRoute\|test.skip\|test.fixme" app/tests` finds nothing.
+
+### Numbers: `npx playwright test`, real Worker on 7303 (fresh state, TEST_MODE), final run after all controls were restored
+
+| Project | Passed | Failed | Skipped |
+|---|---|---|---|
+| chromium-390 | 17 | 0 | 0 |
+| chromium-1280 | 17 | 0 | 0 |
+| webkit-390 | 17 | 0 | 0 |
+| webkit-1280 | 17 | 0 | 0 |
+| **Total** | **68** | **0** | **0** (4.8 min) |
+
+17 tests per project:
+- **board:** poll does not redraw an open Offer picker; JSON + CSV download; Today board within two screens, header one row, time labels one line.
+- **days:** closed Sunday, SAMPLE on 3 screens, primary buttons.
+- **journey:** the full flow; ics is `text/calendar`.
+- **offer:** offer → accept → Confirmed.
+- **pin:** wrong PIN 401; sign in and out.
+- **shop:**
+  - pending / Today / Week / item;
+  - Send to Shop Board shows the 501 text;
+  - decline with a note, which the customer sees;
+  - cancel a confirmed booking;
+  - block create + remove;
+  - Settings refusal inline then save (Saturday closed for customers);
+  - Change PIN (wrong current refused, old PIN refused, new PIN signs in).
+- **taken:** two customers, one slot, three alternatives.
+
+### What changed in the app
+- **The shop screens now run against the real M2 routes.**
+  - Offer picker: day chips, then `/api/shop/slots?exclude=`, an optional note, "Offer <time>".
+  - Decline and shop cancel with notes; Send to Shop Board shows the 501 text as is.
+  - Block create (label limit 40, the Worker's) and remove; the export fetch with the Bearer token, saved as a file.
+  - Settings refusal inline (`bays_in_use` under Booking rules) and save; Change PIN.
+- **Phone:**
+  - (a) Each card folds its texts behind one "Texts to send (N)" button, at least 44 px, in the phone/bay row, so it adds no row. It is open by default only on a Just done card.
+  - Compact cards on phones: the three actions on one row, the note and the shop's own note clamped to one line.
+  - A one-row board toolbar ("Download (JSON)" on screen; the full "Download for Shop Board (JSON)" stays in the accessible name), and a smaller shop heading.
+  - (b) The header is one row at 390: Sign out moves to a "This phone" panel at the bottom of Settings (the header button stays at ≥ 720 px).
+  - (c) Time labels on the Today grid keep to one line (`white-space: nowrap`).
+- **1280:** a card with an open Offer or Decline panel spans the whole card row, and its buttons may wrap. Before, "Offer Wed Sep 16, 2:00 PM" was clipped in a one-third-width card (seen in `chromium-1280-shop-offer.png`).
+- Offered items are drawn in `offer.bays` (clarification 17), with `request.bays` as the fallback.
+
+### What changed in the tests
+- The copy-text step in `journey` opens "Texts to send (3)" first. The texts are checked by the full link (`Details: http://…/r/?t=…`), not by wording, so clarification 15's new wording needed no spec change.
+- `taken`: a one-bay shop cannot keep the two-bay truck service (`400 "Truck or RV service needs 1 to 1 bays."`), so that test sets every service to 1 bay. The Worker was right; my test data was wrong.
+- `tap()`: if the target's centre is under the sticky header, it scrolls the target to the middle first. A person would scroll too. Anything else on top still fails the hit-test (control (b) below still goes red).
+- Screenshots on touch projects scroll to the top directly before the picture (Playwright has no wheel on mobile), so the sticky header is not painted mid-page. This happens after every check in the test.
+- **Exception to "real input only":** native `<select>` values (block-out times, bay count) are picked with `selectOption`, because a native list has no drawn options to tap.
+
+### New checks and their negative controls (each broken, run, red, restored with `cmp`, then the full suite green)
+- **(4a) The poll does not redraw an open Offer picker.** `page.clock.install()`; open the picker; pick Wed Sep 16 and wait for its times.
+  - Setup: hold the picker element; another customer books through the API; `clock.runFor(16 000)`; wait for the `/api/shop/board` poll response.
+  - Checks: the same element is still connected, Sep 16 is still chosen, and the new customer is not drawn yet. Then close the picker, run the clock again, and the new customer appears, so the poll really ran with new data.
+  - Control: `if (quiet && (b.menu || b.open || b.busy)) return` replaced by `if (false) return` → **red on all 4 projects**:
+    `Error: the open picker is the same element after the poll · Expected: true · Received: false`.
+- **(4b) The export downloads.** Week view Mon Sep 14 to Sun Sep 20.
+  - JSON: `waitForEvent('download')` gives `shop-board-2026-09-14-to-2026-09-20.json`, with `format: "shop-board-patches/v1"`, items > 0 and every id `bab-…`.
+  - CSV: the file's first line is `id,date,slot,bay,name,phone,year,make,model,issue,estTime`, with one row per JSON item.
+  - Control: the export sent without the Bearer header (`!path.includes('/export/')` added to the header rule) → **red** on chromium-390 and webkit-1280:
+    `Error: page.waitForEvent: Test timeout of 20000ms exceeded. · waiting for event "download"`.
+  - My first run of this control and of the next one was **void, not red**: both `--project` flags went in as one quoted argument, so Playwright exited on its arguments before running a test. I caught it because no ✘ lines were printed, and re-ran both with separate arguments. The red output here is from the re-run.
+- **(5) Seeded week, 4 pending cards.** At 390 the first bay column starts within two phone screens; each Texts to send button is ≥ 44 px; the header is one row (brand and Board/Settings centred within 12 px, header < 80 px); every time label is on one line (one line box).
+  - First real run: `first bay column starts at 2095 px; two screens are 1688 px` (chromium-390) and `2094 px; 1328 px` (webkit-390, where the iPhone 14 viewport is 664 px). After the compaction: 1398 px on webkit-390, still red. After moving the toggle into the phone row: green on all 4.
+  - Control: every text group open by default (`: true` instead of `: ctx === 'recent'`) → **red** on chromium-390 and webkit-390:
+    `Error: first bay column starts at 1985 px; two screens are 1688 px`.
+- The M2 controls (status label → journey, overlay over Send → hit-test, old gradient → contrast, bare link → journey) still stand (red outputs in the M2 section below). The suite they guard is the same, now with 0 skips.
+
+### Screenshots looked at after the changes
+- **shop-pending:** webkit-390 has four compact cards with folded texts; chromium-1280 has the 3-column cards.
+- **shop-today:** webkit-390 shows the bay switcher, the walk-in and the truck job in Bay 2; 1280 shows the bay columns.
+- **shop-offer:** webkit-390 has the picker in the card; chromium-1280 has the card spanning the row, and the Offer button now fits.
+- **shop-settings:** webkit-390 and chromium-1280. The sticky Save bar shows part-way down a full-page picture, where the viewport bottom was. That is how a sticky bar looks in a full-page shot, not a layout bug.
+
+### For bb1
+Nothing failing. Every route behaved as API.md and clarifications 8–18 say, in 68 of 68 tests. Clarifications 17 (`offer.bays`) and 18 (one readable 404) were being built at the time; the app handles both the old and new shapes.
+
+## M2 — shop side and the Playwright suite — DONE (six tests waiting on bb1 M2 routes; superseded by M2b above)
 
 ### What I built
 - **Lead's changes.**

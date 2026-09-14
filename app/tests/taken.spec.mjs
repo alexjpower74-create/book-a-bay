@@ -1,7 +1,7 @@
 // The race from the customer's side: settings leave one slot on Tuesday, two customers pick it, the second to send sees
 // "just taken" and exactly three alternatives, and one tap on an alternative books straight through.
 import { test, expect } from '@playwright/test'
-import { fresh, tap, type, api, shot, shopToken, newContext, needsRoute } from './helpers.mjs'
+import { fresh, tap, type, api, shot, shopToken, newContext } from './helpers.mjs'
 
 test.beforeEach(async ({ context, request }) => fresh(context, request))
 
@@ -17,12 +17,13 @@ async function toDetails(page, name) {
 }
 
 test('the second customer to send sees "just taken" and three alternatives', async ({ page, browser, request }, testInfo) => {
-  await needsRoute(request, 'GET', '/api/shop/settings', 'GET/PUT /api/shop/settings')
   const token = await shopToken(request)
   const auth = { Authorization: `Bearer ${token}` }
   const settings = (await api(request, 'GET', '/api/shop/settings', null, auth)).body
   // One bay, one booking per start, Tuesdays 8:00 to 8:30: Tue Sep 15 has exactly one oil change slot.
-  const saved = await api(request, 'PUT', '/api/shop/settings', { ...settings, bays: 1, max_per_slot: 1, hours: { ...settings.hours, 2: { open: '08:00', close: '08:30' } } }, auth)
+  // A one-bay shop cannot keep a two-bay service, so the truck service drops to one bay here.
+  const services = settings.services.map((s) => ({ ...s, bays_needed: 1 }))
+  const saved = await api(request, 'PUT', '/api/shop/settings', { ...settings, services, bays: 1, max_per_slot: 1, hours: { ...settings.hours, 2: { open: '08:00', close: '08:30' } } }, auth)
   expect(saved.status, JSON.stringify(saved.body)).toBe(200)
 
   const other = await newContext(browser, testInfo)

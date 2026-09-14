@@ -18,10 +18,16 @@
 .shop-bar h1 small { margin-left: 2px; }
 .shop-nav { gap: 6px; }
 .shop-nav button { height: var(--tap); }
+.phone-only { display: none; }
 @media (max-width: 719px) {
-  .shop-bar { gap: 8px; }
+  .shop-bar { gap: 8px; flex-wrap: nowrap; }
   .shop-bar h1 small { display: none; }
+  .shop-bar h1 { white-space: nowrap; }
+  .shop-nav { flex-wrap: nowrap; }
+  #signout { display: none !important; }
+  .phone-only { display: block; }
 }
+.signout-panel { margin-top: 16px; }
 
 /* sign in */
 .signin { max-width: 440px; }
@@ -38,7 +44,9 @@
 @media (min-width: 880px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 1200px) { .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .card { position: relative; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px 16px; border-radius: var(--radius); box-shadow: inset 3px 0 0 var(--st), var(--shadow-2); }
-.card[data-open='1'] { border-color: var(--accent-ring); }
+.card[data-open='1'] { border-color: var(--accent-ring); grid-column: 1 / -1; }
+.card .panel-in .actions .btn { white-space: normal; text-align: center; }
+@media (min-width: 720px) { .card .panel-in .actions .btn { flex: 0 0 auto; min-width: 180px; } }
 .card h4 { margin: 2px 0 0; font-family: var(--display); font-size: 19px; font-weight: 700; letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .card-head .when { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -65,7 +73,11 @@
 .picker .step-label { margin: 4px 0 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
 
 .texts { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
-.texts .eyebrow { margin: 0; }
+.meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.meta-row .meta { flex: 1 1 auto; min-width: 0; }
+.texts-toggle { flex: 0 0 auto; margin-left: auto; padding: 0 8px; color: var(--text-2); font-weight: 600; }
+.texts-toggle svg { transition: transform 160ms var(--ease); }
+.texts-toggle[aria-expanded='true'] svg { transform: rotate(90deg); }
 .text-row { display: flex; align-items: flex-start; gap: 10px; }
 .text-body { flex: 1; min-width: 0; }
 .text-body b { font-size: 13px; font-weight: 600; color: var(--text-2); }
@@ -100,7 +112,7 @@
 .daygrid { display: grid; grid-template-columns: 64px repeat(var(--bays), minmax(0, 1fr)); gap: 0 8px; }
 .daygrid .bayhead { height: 34px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
 .daygrid .bayhead i { width: 9px; height: 9px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
-.tlabel { height: var(--row); padding-right: 8px; text-align: right; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; transform: translateY(-7px); }
+.tlabel { height: var(--row); padding-right: 6px; white-space: nowrap; text-align: right; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; transform: translateY(-7px); }
 .lane { position: relative; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2); overflow: hidden; }
 .gridrow { height: var(--row); border-top: 1px dashed rgba(255,255,255,0.04); }
 .gridrow.hour { border-top: 1px solid rgba(255,255,255,0.08); }
@@ -171,3 +183,31 @@
 .savebar { position: sticky; bottom: 12px; z-index: 10; display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 10px 12px; border-radius: var(--radius); }
 .savebar .saved { color: #a7f3d0; font-weight: 600; }
 .pin-form .alert, .pin-form .okmsg { margin: 12px 0 0; }
+
+/* phone: keep pending cards short so the Today board is reached within two screens of four requests */
+@media (max-width: 719px) {
+  .shop-page { padding-top: 14px; gap: 12px; }
+  .shop-head .eyebrow { display: none; }
+  .shop-head h2 { font-size: 18px; }
+  .section-head { margin-bottom: 8px; }
+  .cards { gap: 10px; }
+  .card { padding: 10px 12px 8px; gap: 2px; }
+  .card h4 { margin: 0; font-size: 17px; }
+  .card .meta { font-size: 13px; }
+  .card .note, .card .offered, .card .shop-note-line { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .card .note { margin-top: 2px; padding: 3px 8px; font-size: 13px; }
+  .card .offered { font-size: 13px; }
+  .card .actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; margin-top: 6px; }
+  .card .actions .btn { min-height: var(--tap); padding: 0 6px; font-size: 14px; white-space: normal; line-height: 1.15; text-align: center; }
+  .card .panel-in .actions { grid-auto-flow: row; }
+  .texts { margin-top: 4px; padding-top: 2px; }
+  .board { padding: 12px 10px 14px; }
+  .board-head { gap: 8px; margin-bottom: 8px; }
+  .seg button { padding: 0 12px; }
+  .datenav .range { min-width: 0; }
+  .board-tools { flex-wrap: nowrap; gap: 6px; }
+  .board-tools .btn { flex: 1 1 auto; padding: 0 8px; font-size: 14px; }
+  .board-tools .long { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .bayseg { margin-bottom: 6px; }
+  .daygrid .bayhead { height: 28px; }
+}

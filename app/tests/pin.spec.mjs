@@ -1,6 +1,6 @@
 // Shop sign-in: a wrong PIN is refused on screen AND by the server (401), the right one signs in and out.
 import { test, expect } from '@playwright/test'
-import { fresh, tap, type, shot, PIN } from './helpers.mjs'
+import { fresh, tap, type, shot, signOutThroughPage, PIN } from './helpers.mjs'
 
 test.beforeEach(async ({ context, request }) => fresh(context, request))
 
@@ -32,7 +32,7 @@ test('the right PIN signs in, keeps the token, and Sign out ends it', async ({ p
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Waiting for you' })).toBeVisible()
 
-  await tap(page, page.locator('#signout'), 'Sign out')
+  await signOutThroughPage(page)
   await expect(page.locator('#signin-btn')).toBeVisible()
   expect(await page.evaluate(() => localStorage.getItem('book-a-bay:shop-token'))).toBeNull()
 })

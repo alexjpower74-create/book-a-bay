@@ -1,12 +1,10 @@
 // The shop offers another time from its card; the customer sees New time offered, accepts, and is Confirmed.
 import { test, expect } from '@playwright/test'
-import { fresh, tap, type, shot, newContext, signInThroughPage, bookThroughPage, needsRoute } from './helpers.mjs'
+import { fresh, tap, type, shot, newContext, signInThroughPage, bookThroughPage } from './helpers.mjs'
 
 test.beforeEach(async ({ context, request }) => fresh(context, request))
 
-test('shop offers another time → customer accepts → Confirmed', async ({ page, browser, request }, testInfo) => {
-  await needsRoute(request, 'POST', '/api/r/aaaaaaaaaaaaaaaaaaaaaaaa/accept', 'POST /api/r/:token/accept')
-  await needsRoute(request, 'POST', '/api/shop/requests/r_0000000000000000/offer', 'POST /api/shop/requests/:id/offer')
+test('shop offers another time → customer accepts → Confirmed', async ({ page, browser }, testInfo) => {
 
   const link = await bookThroughPage(page)
 

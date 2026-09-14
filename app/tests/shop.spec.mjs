@@ -1,7 +1,8 @@
-// Shop screens on the seeded SAMPLE week: pending on top, the Today board by bay (a segmented bay control at 390),
-// the Week list, item details, Block out time, and Settings. Steps on bb1 M2 routes skip while those routes are missing.
+// Shop screens against the real Worker on the seeded SAMPLE week: pending on top, Today by bay (segmented at 390), Week,
+// item details, Send to Shop Board (501 without SHOP_BOARD_URL), decline with a note, cancel a confirmed booking,
+// Block out time create and remove, Settings refusal and save, and Change PIN.
 import { test, expect } from '@playwright/test'
-import { fresh, tap, type, api, shot, shopToken, signInThroughPage, needsRoute } from './helpers.mjs'
+import { fresh, tap, type, api, shot, shopToken, signInThroughPage, signOutThroughPage } from './helpers.mjs'
 
 test.beforeEach(async ({ context, request }) => {
   await fresh(context, request)
@@ -10,13 +11,26 @@ test.beforeEach(async ({ context, request }) => {
 
 const phone = (testInfo) => testInfo.project.name.endsWith('390')
 
-test('pending on top, Today by bay, Week, and item details', async ({ page, request }, testInfo) => {
+async function boardFromApi(request, query) {
   const token = await shopToken(request)
-  const board = (await api(request, 'GET', '/api/shop/board?days=7', null, { Authorization: `Bearer ${token}` })).body
+  return (await api(request, 'GET', `/api/shop/board?${query}`, null, { Authorization: `Bearer ${token}` })).body
+}
+
+// Open a request or block on the Today grid; on a phone, pick its bay first. Waits for the day to be the one asked for,
+// so a tap never lands on a board that is about to be redrawn.
+async function openItem(page, testInfo, id, bay, dayLabel = 'Tue Sep 15') {
+  await expect(page.locator('#board-range')).toHaveText(dayLabel)
+  if (phone(testInfo)) await tap(page, page.locator(`.bayseg button[data-bay="${bay}"]`), `Bay ${bay}`)
+  await tap(page, page.locator(`[data-bay-col="${bay}"] .item[data-item="${id}"]`), `board item ${id}`)
+}
+
+test('pending on top, Today by bay, Week, and item details', async ({ page, request }, testInfo) => {
+  const board = await boardFromApi(request, 'days=7')
 
   await signInThroughPage(page)
   await expect(page.locator('#pending-count')).toHaveText(String(board.pending.length))
   await expect(page.locator('.pending article.req')).toHaveCount(board.pending.length)
+  await expect(page.locator('.pending .text-row')).toHaveCount(0)
   const offered = board.pending.find((r) => r.status === 'offered')
   await expect(page.locator('.pending article.req[data-status="offered"]')).toContainText(`Offered ${offered.offer.label}`)
   await shot(page, testInfo, 'shop-pending')
@@ -29,7 +43,6 @@ test('pending on top, Today by bay, Week, and item details', async ({ page, requ
   const truck = tue.items.find((it) => it.kind === 'request' && it.request.service.id === 'truck-rv').request
   const truckItem = (bay) => page.locator(`[data-bay-col="${bay}"] .item[data-item="${truck.id}"]`)
   if (phone(testInfo)) {
-    // One bay at a time on a phone: bay 1 shows first; the truck job also holds bay 2.
     await expect(page.locator('.bayseg')).toBeVisible()
     await expect(truckItem(2)).toBeHidden()
     await tap(page, page.locator('.bayseg button[data-bay="2"]'), 'Bay 2')
@@ -42,8 +55,7 @@ test('pending on top, Today by bay, Week, and item details', async ({ page, requ
   await expect(page.locator('.item[data-status="block"]').first()).toBeAttached()
   await shot(page, testInfo, 'shop-today')
 
-  const item = phone(testInfo) ? truckItem(2) : truckItem(truck.bays[0])
-  await tap(page, item, 'truck job on the board')
+  await tap(page, phone(testInfo) ? truckItem(2) : truckItem(truck.bays[0]), 'truck job on the board')
   const menu = page.locator('#item-menu article.req')
   await expect(menu).toContainText(truck.customer.name)
   await expect(menu.locator('.chip')).toHaveText('Confirmed')
@@ -54,70 +66,132 @@ test('pending on top, Today by bay, Week, and item details', async ({ page, requ
 
   await tap(page, page.getByRole('tab', { name: 'Week' }), 'Week')
   await expect(page.locator('.wday')).toHaveCount(7)
-  const itemsInWeek = board.days.reduce((n, d) => n + d.items.length, 0)
-  // The board is one week from Tue Sep 15 now, so count that range from the API too.
-  const week = (await api(request, 'GET', '/api/shop/board?date=2026-09-15&days=7', null, { Authorization: `Bearer ${token}` })).body
+  const week = await boardFromApi(request, 'date=2026-09-15&days=7')
   await expect(page.locator('.witem')).toHaveCount(week.days.reduce((n, d) => n + d.items.length, 0))
-  expect(itemsInWeek).toBeGreaterThan(0)
   await shot(page, testInfo, 'shop-week')
 })
 
-test('Send to Shop Board says plainly when it is not set up', async ({ page, request }, testInfo) => {
-  await needsRoute(request, 'POST', '/api/shop/requests/r_0000000000000000/push', 'POST /api/shop/requests/:id/push')
-  const token = await shopToken(request)
-  const board = (await api(request, 'GET', '/api/shop/board?date=2026-09-15&days=1', null, { Authorization: `Bearer ${token}` })).body
+test('Send to Shop Board shows the not-connected message (no SHOP_BOARD_URL)', async ({ page, request }, testInfo) => {
+  const board = await boardFromApi(request, 'date=2026-09-15&days=1')
   const confirmed = board.days[0].items.find((it) => it.kind === 'request' && it.request.status === 'confirmed').request
   await signInThroughPage(page)
   await tap(page, page.getByRole('button', { name: 'Next day' }), 'Next day')
-  if (phone(testInfo)) await tap(page, page.locator(`.bayseg button[data-bay="${confirmed.bays[0]}"]`), 'bay')
-  await tap(page, page.locator(`[data-bay-col="${confirmed.bays[0]}"] .item[data-item="${confirmed.id}"]`), 'confirmed job')
+  await openItem(page, testInfo, confirmed.id, confirmed.bays[0])
   const menu = page.locator('#item-menu article.req')
   const pushed = page.waitForResponse((r) => r.url().endsWith(`/api/shop/requests/${confirmed.id}/push`))
   await tap(page, menu.getByRole('button', { name: 'Send to Shop Board' }), 'Send to Shop Board')
   const res = await pushed
-  const body = await res.json()
-  if (res.status() === 501) await expect(page.locator('#item-menu .alert')).toHaveText(body.error)
-  else expect(res.status(), JSON.stringify(body)).toBe(200)
+  expect(res.status()).toBe(501)
+  await expect(page.locator('#item-menu .alert')).toHaveText('Shop Board is not connected yet. Use "Download for Shop Board" instead.')
 })
 
-test('Block out time adds a walk-in block to the board', async ({ page, request }, testInfo) => {
+test('Decline with a note: the customer sees Declined and the note', async ({ page, request }) => {
+  const board = await boardFromApi(request, 'days=7')
+  const target = board.pending.find((r) => r.status === 'requested')
+  await signInThroughPage(page)
+  const card = page.locator(`.pending article.req[data-id="${target.id}"]`)
+  await tap(page, card.getByRole('button', { name: 'Decline', exact: true }), 'Decline')
+  await type(page, card.locator('input[data-note]'), 'We are short a mechanic that day.')
+  await tap(page, card.getByRole('button', { name: 'Decline request' }), 'Decline request')
+  const done = page.locator(`.recent article.req[data-id="${target.id}"]`)
+  await expect(done.locator('.chip')).toHaveText('Declined')
+  await expect(done.locator('.text-row', { hasText: 'Text to decline' }).locator('p')).toContainText('We are short a mechanic that day.')
+  await expect(card).toHaveCount(0)
+
+  await page.goto(target.status_url)
+  await expect(page.locator('#status-pill')).toHaveText('Declined')
+  await expect(page.locator('.shop-note')).toContainText('We are short a mechanic that day.')
+})
+
+test('Cancel a confirmed booking from the board frees its time', async ({ page, request }, testInfo) => {
+  const board = await boardFromApi(request, 'date=2026-09-15&days=1')
+  const confirmed = board.days[0].items.find((it) => it.kind === 'request' && it.request.status === 'confirmed').request
+  await signInThroughPage(page)
+  await tap(page, page.getByRole('button', { name: 'Next day' }), 'Next day')
+  await openItem(page, testInfo, confirmed.id, confirmed.bays[0])
+  const menu = page.locator('#item-menu article.req')
+  await tap(page, menu.getByRole('button', { name: 'Cancel booking' }), 'Cancel booking')
+  await type(page, menu.locator('input[data-note]'), 'Customer called to cancel.')
+  await tap(page, menu.getByRole('button', { name: 'Cancel booking' }), 'Cancel booking (confirm)')
+  await expect(page.locator(`.recent article.req[data-id="${confirmed.id}"] .chip`)).toHaveText('Cancelled')
+  await expect(page.locator(`.item[data-item="${confirmed.id}"]`)).toHaveCount(0)
+
+  await page.goto(confirmed.status_url)
+  await expect(page.locator('#status-pill')).toHaveText('Cancelled')
+})
+
+test('Block out time: create a walk-in block, then remove it', async ({ page }, testInfo) => {
   await signInThroughPage(page)
   await tap(page, page.getByRole('button', { name: 'Block out time' }), 'Block out time')
   const form = page.locator('#block-form')
   await expect(form).toBeVisible()
   await shot(page, testInfo, 'shop-block-form')
-  await needsRoute(request, 'POST', '/api/shop/blocks', 'POST /api/shop/blocks')
+  // Native selects: selectOption is Playwright's way to pick from a native list (there is no drawn list to tap).
   await form.locator('#bf-time').selectOption('14:00')
   await form.locator('#bf-end').selectOption('15:00')
+  const made = page.waitForResponse((r) => r.url().endsWith('/api/shop/blocks') && r.request().method() === 'POST')
   await tap(page, form.getByRole('button', { name: 'Block out this time' }), 'Block out this time')
+  expect((await made).status()).toBe(201)
   await expect(form).toHaveCount(0)
-  await expect(page.locator('.item[data-status="block"]', { hasText: '2:00 PM to 3:00 PM' }).first()).toBeAttached()
+  const block = page.locator('[data-bay-col="1"] .item[data-status="block"]', { hasText: '2:00 PM to 3:00 PM' })
+  await expect(block).toBeVisible()
+
+  await tap(page, block, 'the new block')
+  await tap(page, page.locator('#item-menu').getByRole('button', { name: 'Remove this block' }), 'Remove this block')
+  await expect(page.locator('.item[data-status="block"]', { hasText: '2:00 PM to 3:00 PM' })).toHaveCount(0)
+  await expect(page.locator('#item-menu')).toHaveCount(0)
 })
 
-test('Settings load, save, and show the API refusal inline', async ({ page, request }, testInfo) => {
-  await needsRoute(request, 'GET', '/api/shop/settings', 'GET/PUT /api/shop/settings')
+test('Settings: the API refusal shows inline, then a save closes Saturdays for customers', async ({ page }, testInfo) => {
   await signInThroughPage(page)
   await tap(page, page.getByRole('tab', { name: 'Settings' }), 'Settings')
   await expect(page.getByRole('heading', { name: 'Opening hours' })).toBeVisible()
   await shot(page, testInfo, 'shop-settings')
 
-  // Refused: bookings sit on bay 3 from Tue Sep 15, so 2 bays is not allowed.
+  // Refused: the seeded walk-in block holds bay 3 on Tue Sep 15, so 2 bays is not allowed.
   await page.locator('#s-bays').selectOption('2')
-  const saved = page.waitForResponse((r) => r.url().endsWith('/api/shop/settings') && r.request().method() === 'PUT')
+  const refusedWait = page.waitForResponse((r) => r.url().endsWith('/api/shop/settings') && r.request().method() === 'PUT')
   await tap(page, page.locator('#settings-save'), 'Save settings')
-  const refused = await saved
+  const refused = await refusedWait
   const body = await refused.json()
   expect(refused.status(), JSON.stringify(body)).toBe(409)
+  expect(body.code).toBe('bays_in_use')
   await expect(page.locator('[data-section="rules"] .alert')).toHaveText(body.error)
 
-  // Accepted: Saturday closed.
   await page.locator('#s-bays').selectOption('3')
   await tap(page, page.locator('.hours-row[data-day="6"] input[type="checkbox"]'), 'Saturday Closed')
-  const ok = page.waitForResponse((r) => r.url().endsWith('/api/shop/settings') && r.request().method() === 'PUT')
+  const okWait = page.waitForResponse((r) => r.url().endsWith('/api/shop/settings') && r.request().method() === 'PUT')
   await tap(page, page.locator('#settings-save'), 'Save settings')
-  expect((await ok).status()).toBe(200)
+  expect((await okWait).status()).toBe(200)
   await expect(page.locator('#settings-saved')).toHaveText('Saved.')
+  await expect(page.locator('[data-section="rules"] .alert')).toHaveCount(0)
+
   await page.goto('/')
   await tap(page, page.locator('button.service', { hasText: 'Oil change' }), 'Oil change')
   await expect(page.locator('button.day', { hasText: 'Sep 19' })).toContainText('Closed Saturdays')
+})
+
+test('Change PIN: a wrong current PIN is refused, then the new PIN signs in', async ({ page }) => {
+  await signInThroughPage(page)
+  await tap(page, page.getByRole('tab', { name: 'Settings' }), 'Settings')
+  const form = page.locator('#pin-form')
+  await type(page, form.locator('#pin-current'), '1111')
+  await type(page, form.locator('#pin-next'), '1357')
+  await tap(page, form.getByRole('button', { name: 'Change PIN' }), 'Change PIN')
+  await expect(form.locator('.alert')).toHaveText('That PIN is not right.')
+
+  await tap(page, form.locator('#pin-current'), 'current PIN')
+  await page.keyboard.press('ControlOrMeta+A')
+  await page.keyboard.type('2468')
+  await tap(page, form.getByRole('button', { name: 'Change PIN' }), 'Change PIN again')
+  await expect(form.locator('.okmsg')).toContainText('PIN changed.')
+
+  await signOutThroughPage(page)
+  await expect(page.locator('#signin-btn')).toBeVisible()
+  await type(page, page.locator('#pin'), '2468')
+  await tap(page, page.locator('#signin-btn'), 'Sign in with the old PIN')
+  await expect(page.locator('#signin-error')).toHaveText('That PIN is not right.')
+  await type(page, page.locator('#pin'), '1357')
+  await tap(page, page.locator('#signin-btn'), 'Sign in with the new PIN')
+  await expect(page.getByRole('heading', { name: 'Waiting for you' })).toBeVisible()
 })
