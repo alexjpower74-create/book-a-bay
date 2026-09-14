@@ -239,3 +239,11 @@ These are bb1's readings of the contract, reviewed and adopted. Both slices foll
 16. **Lowering bays vs a booking in flight (required, bb1 M3).** The booking and move batches must also refuse, inside the same
     transaction, when a bay they write is above the bay count stored at commit time. Either the settings save commits first and the
     booking re-reads and retries, or the booking commits first and the save answers `bays_in_use`. Never both.
+
+## Clarifications (lead, after bb2's cross-review of bb1 M1, 2026-09-14 03:40)
+
+17. **`offer` in the shop view carries `bays`**: `{ date, time, end, label, bays }` (the bays the offer holds, `offer_bays`), so the
+    Today board draws an offered request in the right bay column. The customer view's `offer` stays `{ date, time, end, label }`.
+18. **Every miss under `/api/r/*`**, whatever the token looks like (too short, bad characters, unknown), answers
+    `404 {"error":"We could not find that booking. Please check the link the shop sent you.","code":"not_found"}`. A link cut short
+    when pasted into a text message must read the same as an unknown one.
