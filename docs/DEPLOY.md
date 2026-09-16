@@ -1,7 +1,9 @@
 # Deploying Book a Bay
 
-**Nothing here has been run.** Tonight's build is local only by Alexander's order; he reviews before any deploy. This is the
-checklist for when he says go. One deployment serves one shop (DECISIONS.md #1).
+**Demo deployed 2026-09-15** at Alexander's go: D1 `book-a-bay` (id `3648979d-4957-4b0c-b9e3-7dee87cfb2b7`), migrations
+0001–0003 applied remotely, Worker `book-a-bay` at <https://book-a-bay.alexjpower74.workers.dev>, `SHOP_BOARD_URL` unset
+(the demo does not push into a real Shop Board). One deployment serves one shop (DECISIONS.md #1); a real shop follows
+the checklist below with its own database.
 
 ## What gets created
 

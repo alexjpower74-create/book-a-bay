@@ -3,7 +3,8 @@
 Online booking requests for small auto repair shops, sold as an add-on to Shop Board. A customer picks a service, a day and a
 time and sends a request from their phone; the shop confirms, declines or offers another time; the customer's status link shows what happened.
 
-**Local build only (overnight 2026-09-14). Nothing is deployed, nothing is sent: no SMS, no email.**
+**Live demo: <https://book-a-bay.alexjpower74.workers.dev>** (deployed 2026-09-15 at Alexander's go, SAMPLE shop, PIN 2468).
+Nothing is sent: no SMS, no email. One deployment serves one shop; a real shop gets its own.
 
 ## Run it on this computer
 
@@ -82,7 +83,8 @@ npm run test:e2e           # Playwright, chromium + webkit, 390 and 1280, real t
 
 ## What deploying needs
 
-Nothing has been deployed; Alexander decides. Full checklist in `docs/DEPLOY.md`. In short:
+The demo is deployed (D1 `book-a-bay`, migrations 0001–0003 applied remotely, Worker `book-a-bay`). Redeploy with
+`cd worker && npx wrangler deploy`. Full checklist in `docs/DEPLOY.md`. In short:
 
 - **D1:** `book-a-bay` (`wrangler d1 create`, put the id in `worker/wrangler.toml`, then `wrangler d1 migrations apply book-a-bay --remote`).
 - **Worker:** `book-a-bay`, serving the API and the app from one place (`wrangler deploy` from `worker/`).

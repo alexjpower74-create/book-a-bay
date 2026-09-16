@@ -17,7 +17,8 @@ Read PLAN.md first (the Rig contract), then docs/API.md (the contract between sl
 
 ## Rules that bite here
 
-- **Local only.** `wrangler dev --local`. No `wrangler deploy`, `secret put`, `d1 create`, `--remote`, Pages or DNS.
+- **Deploys only when Alexander says so** (he did on 2026-09-15: the SAMPLE demo is live). Dev: `wrangler dev --local`.
+  Public repo: no secrets, no home paths; run `check-no-personal-data` before pushing.
 - **Nothing is sent.** No SMS, email or Slack; the shop copies ready-made texts. Never push to the live Shop Board.
 - **SAMPLE on every screen.** The shop is "SAMPLE Auto Service — Grand Falls-Windsor (demo)". Never Warrior Automotive or any real shop.
 - **Shop dates come from the API**, never the browser clock. `TEST_MODE=1` (tests only) enables `X-Test-Now` / `X-Test-IP`.
