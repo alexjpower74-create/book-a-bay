@@ -10,14 +10,14 @@ import worker from '../src/index.js'
 const BASE = process.env.BASE || `http://127.0.0.1:${process.env.PORT || 7302}`
 const FAKE = process.env.FAKE_SHOP_BOARD || 'http://127.0.0.1:7304'
 const NOW_ISO = '2026-09-14T11:30:00.000Z'
-const later = minutes => new Date(Date.parse(NOW_ISO) + minutes * 60000).toISOString()
+const later = (minutes) => new Date(Date.parse(NOW_ISO) + minutes * 60000).toISOString()
 const TUE = '2026-09-15'
 const WED = '2026-09-16'
 const THU = '2026-09-17'
 const FRI = '2026-09-18'
 const SHOP_NAME = 'SAMPLE Auto Service — Grand Falls-Windsor (demo)'
 
-async function api (method, path, { body, token, ip = '10.0.0.1', now = NOW_ISO, headers = {} } = {}) {
+async function api(method, path, { body, token, ip = '10.0.0.1', now = NOW_ISO, headers = {} } = {}) {
   const res = await fetch(BASE + path, {
     method,
     headers: {
@@ -25,53 +25,79 @@ async function api (method, path, { body, token, ip = '10.0.0.1', now = NOW_ISO,
       'X-Test-IP': ip,
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers
+      ...headers,
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   })
   const text = await res.text()
   let json
-  try { json = JSON.parse(text) } catch {}
+  try {
+    json = JSON.parse(text)
+  } catch {}
   return { status: res.status, body: json, text, headers: res.headers }
 }
 
 const reset = async () => assert.equal((await api('POST', '/api/test/reset')).status, 200)
 const booking = (service, date, time, over = {}) => ({
-  service, date, time, name: 'Pat Sample (sample)', phone: '709-555-0142', year: '2016', make: 'Toyota', model: 'Corolla', note: '', ...over
+  service,
+  date,
+  time,
+  name: 'Pat Sample (sample)',
+  phone: '709-555-0142',
+  year: '2016',
+  make: 'Toyota',
+  model: 'Corolla',
+  note: '',
+  ...over,
 })
-async function create (service, date, time, over = {}, ip) {
+async function create(service, date, time, over = {}, ip) {
   const r = await api('POST', '/api/requests', { body: booking(service, date, time, over), ip })
   assert.equal(r.status, 201, `create ${service} ${date} ${time}: ${r.text}`)
   return r.body
 }
-const slotTimes = async (service, date) => (await api('GET', `/api/slots?service=${service}&date=${date}`)).body.slots.map(s => s.time)
-const holdsOf = async id => (await api('GET', `/api/test/holds?owner=${encodeURIComponent(`r:${id}`)}`)).body
-const viewOf = async token => (await api('GET', `/api/r/${token}`)).body
-async function signin (ip) {
+const slotTimes = async (service, date) => (await api('GET', `/api/slots?service=${service}&date=${date}`)).body.slots.map((s) => s.time)
+const holdsOf = async (id) => (await api('GET', `/api/test/holds?owner=${encodeURIComponent(`r:${id}`)}`)).body
+const viewOf = async (token) => (await api('GET', `/api/r/${token}`)).body
+async function signin(ip) {
   const r = await api('POST', '/api/shop/signin', { body: { pin: '2468' }, ip })
   assert.equal(r.status, 200, r.text)
   return r.body.token
 }
-function expectError (r, status, code, what = '') {
+function expectError(r, status, code, what = '') {
   assert.equal(r.status, status, `${what} ${r.text}`)
   assert.equal(r.body.code, code, what)
   assert.equal(typeof r.body.error, 'string', what)
 }
 
 /** A stand-in D1 that records every call: proves which refusals happen before the database is touched. */
-function stubDb () {
+function stubDb() {
   const calls = []
   const stmt = {
-    bind () { return stmt },
+    bind() {
+      return stmt
+    },
     first: async () => ({ expires_at: '9999-12-31T00:00:00.000Z' }),
     // Just enough settings for the seed handler to run to the end (every day closed, so it writes nothing).
-    all: async () => ({ results: [{ key: 'services', value: '[]' }, { key: 'hours', value: '{}' }, { key: 'bays', value: '3' }, { key: 'timezone', value: '"America/St_Johns"' }] }),
-    run: async () => ({ meta: { changes: 0 } })
+    all: async () => ({
+      results: [
+        { key: 'services', value: '[]' },
+        { key: 'hours', value: '{}' },
+        { key: 'bays', value: '3' },
+        { key: 'timezone', value: '"America/St_Johns"' },
+      ],
+    }),
+    run: async () => ({ meta: { changes: 0 } }),
   }
   return {
     calls,
-    prepare (sql) { calls.push(sql); return stmt },
-    batch: async stmts => { calls.push('batch'); return stmts.map(() => ({ results: [], meta: { changes: 0 } })) }
+    prepare(sql) {
+      calls.push(sql)
+      return stmt
+    },
+    batch: async (stmts) => {
+      calls.push('batch')
+      return stmts.map(() => ({ results: [], meta: { changes: 0 } }))
+    },
   }
 }
 
@@ -110,7 +136,7 @@ test('GET /api/shop matches API.md', async () => {
     { id: 'tire-swap', name: 'Tire swap', minutes: 45, bays_needed: 1 },
     { id: 'brakes', name: 'Brakes', minutes: 120, bays_needed: 1 },
     { id: 'diagnostic', name: 'Diagnostic', minutes: 60, bays_needed: 1 },
-    { id: 'truck-rv', name: 'Truck or RV service', minutes: 120, bays_needed: 2 }
+    { id: 'truck-rv', name: 'Truck or RV service', minutes: 120, bays_needed: 2 },
   ])
 })
 
@@ -123,8 +149,14 @@ test('GET /api/days matches API.md', async () => {
   for (const d of body.days) assert.deepEqual(Object.keys(d), ['date', 'label', 'open', 'reason', 'available'])
   assert.deepEqual(body.days[0], { date: '2026-09-14', label: 'Mon Sep 14', open: true, reason: null, available: 14 }) // 10:00-4:30 PM after lead time
   assert.equal(body.days[1].available, 18)
-  assert.deepEqual(body.days.find(d => d.date === '2026-09-20'), { date: '2026-09-20', label: 'Sun Sep 20', open: false, reason: 'Closed Sundays', available: 0 })
-  assert.deepEqual(body.days.find(d => d.date === '2026-09-21'), { date: '2026-09-21', label: 'Mon Sep 21', open: false, reason: 'Staff training (sample)', available: 0 })
+  assert.deepEqual(
+    body.days.find((d) => d.date === '2026-09-20'),
+    { date: '2026-09-20', label: 'Sun Sep 20', open: false, reason: 'Closed Sundays', available: 0 },
+  )
+  assert.deepEqual(
+    body.days.find((d) => d.date === '2026-09-21'),
+    { date: '2026-09-21', label: 'Mon Sep 21', open: false, reason: 'Staff training (sample)', available: 0 },
+  )
   assert.equal(body.days.at(-1).date, '2026-09-27')
   expectError(await api('GET', '/api/days?service=nope'), 400, 'bad_request')
 })
@@ -136,19 +168,27 @@ test('GET /api/slots matches API.md and refuses bad input', async () => {
   assert.deepEqual(Object.keys(body), ['service', 'date', 'open', 'reason', 'slots'])
   assert.equal(body.open, true)
   assert.equal(body.reason, null)
-  assert.deepEqual(body.slots.slice(0, 2), [{ time: '08:00', label: '8:00 AM' }, { time: '08:30', label: '8:30 AM' }])
+  assert.deepEqual(body.slots.slice(0, 2), [
+    { time: '08:00', label: '8:00 AM' },
+    { time: '08:30', label: '8:30 AM' },
+  ])
   assert.equal(body.slots.length, 18)
   const sunday = await api('GET', '/api/slots?service=oil&date=2026-09-20')
   assert.deepEqual(sunday.body, { service: 'oil', date: '2026-09-20', open: false, reason: 'Closed Sundays', slots: [] })
-  for (const [q, field] of [['service=nope&date=2026-09-15', 'service'], ['service=oil&date=2026-9-15', 'date'],
-    ['service=oil&date=2026-09-28', 'date'], ['service=oil&date=2026-09-13', 'date'], ['service=oil&date=2026-02-30', 'date']]) {
+  for (const [q, field] of [
+    ['service=nope&date=2026-09-15', 'service'],
+    ['service=oil&date=2026-9-15', 'date'],
+    ['service=oil&date=2026-09-28', 'date'],
+    ['service=oil&date=2026-09-13', 'date'],
+    ['service=oil&date=2026-02-30', 'date'],
+  ]) {
     const r = await api('GET', `/api/slots?${q}`)
     expectError(r, 400, 'bad_request', q)
     assert.equal(r.body.field, field, q)
   }
 })
 
-test('POST /api/requests: 201, the time\'s capacity drops, the status view says requested', async () => {
+test("POST /api/requests: 201, the time's capacity drops, the status view says requested", async () => {
   await reset()
   assert.ok((await slotTimes('truck-rv', TUE)).includes('10:00'))
   const daysBefore = (await api('GET', '/api/days?service=truck-rv')).body.days[1].available
@@ -171,8 +211,21 @@ test('POST /api/requests: 201, the time\'s capacity drops, the status view says 
 
   const view = await api('GET', `/api/r/${r.body.token}`)
   assert.equal(view.status, 200)
-  assert.deepEqual(Object.keys(view.body).sort(),
-    ['customer', 'date', 'end', 'ics_url', 'id', 'label', 'offer', 'service', 'shop', 'shop_note', 'status', 'time', 'updated_at'])
+  assert.deepEqual(Object.keys(view.body).sort(), [
+    'customer',
+    'date',
+    'end',
+    'ics_url',
+    'id',
+    'label',
+    'offer',
+    'service',
+    'shop',
+    'shop_note',
+    'status',
+    'time',
+    'updated_at',
+  ])
   assert.equal(view.body.id, r.body.id)
   assert.equal(view.body.status, 'requested')
   assert.deepEqual(view.body.service, { id: 'truck-rv', name: 'Truck or RV service', minutes: 120 })
@@ -184,7 +237,14 @@ test('POST /api/requests: 201, the time\'s capacity drops, the status view says 
   assert.equal(view.body.ics_url, null)
   assert.equal(view.body.shop_note, '')
   assert.deepEqual(view.body.shop, { name: SHOP_NAME, sample: true })
-  assert.deepEqual(view.body.customer, { name: 'Pat Sample (sample)', phone: '709-555-0142', year: '2016', make: 'Toyota', model: 'Corolla', note: 'Rattle at the back.' })
+  assert.deepEqual(view.body.customer, {
+    name: 'Pat Sample (sample)',
+    phone: '709-555-0142',
+    year: '2016',
+    make: 'Toyota',
+    model: 'Corolla',
+    note: 'Rattle at the back.',
+  })
   assert.equal(view.body.updated_at, NOW_ISO)
 
   assert.equal((await api('GET', '/api/r/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA')).status, 404)
@@ -193,9 +253,17 @@ test('POST /api/requests: 201, the time\'s capacity drops, the status view says 
 test('POST /api/requests refuses bad input with the field named', async () => {
   await reset()
   const cases = [
-    [{ phone: '555' }, 'phone'], [{ phone: 'call me maybe' }, 'phone'], [{ name: '' }, 'name'], [{ make: '' }, 'make'],
-    [{ year: '16' }, 'year'], [{ note: 'x'.repeat(281) }, 'note'], [{ time: '09:10' }, 'time'], [{ time: '16:30', service: 'brakes' }, 'time'],
-    [{ date: '2026-09-20' }, 'time'], [{ date: '2026-10-30' }, 'date'], [{ service: 'nope' }, 'service']
+    [{ phone: '555' }, 'phone'],
+    [{ phone: 'call me maybe' }, 'phone'],
+    [{ name: '' }, 'name'],
+    [{ make: '' }, 'make'],
+    [{ year: '16' }, 'year'],
+    [{ note: 'x'.repeat(281) }, 'note'],
+    [{ time: '09:10' }, 'time'],
+    [{ time: '16:30', service: 'brakes' }, 'time'],
+    [{ date: '2026-09-20' }, 'time'],
+    [{ date: '2026-10-30' }, 'date'],
+    [{ service: 'nope' }, 'service'],
   ]
   for (const [over, field] of cases) {
     const r = await api('POST', '/api/requests', { body: { ...booking('oil', TUE, '09:30'), ...over } })
@@ -214,16 +282,30 @@ test('shop sign-in: wrong PIN is 401, shop routes without a valid token are 401'
     assert.equal((await api('POST', '/api/shop/signin', { body: { pin } })).status, 401, String(pin))
   }
   const shopRoutes = [
-    ['GET', '/api/shop/board'], ['POST', '/api/shop/requests/r_abc/confirm'], ['POST', '/api/shop/signout'],
-    ['GET', '/api/shop/settings'], ['PUT', '/api/shop/settings'], ['PUT', '/api/shop/pin'], ['GET', `/api/shop/slots?service=oil&date=${TUE}`],
-    ['POST', '/api/shop/blocks'], ['DELETE', '/api/shop/blocks/b_abc'], ['POST', '/api/shop/requests/r_abc/decline'],
-    ['POST', '/api/shop/requests/r_abc/offer'], ['POST', '/api/shop/requests/r_abc/cancel'], ['POST', '/api/shop/requests/r_abc/push'],
+    ['GET', '/api/shop/board'],
+    ['POST', '/api/shop/requests/r_abc/confirm'],
+    ['POST', '/api/shop/signout'],
+    ['GET', '/api/shop/settings'],
+    ['PUT', '/api/shop/settings'],
+    ['PUT', '/api/shop/pin'],
+    ['GET', `/api/shop/slots?service=oil&date=${TUE}`],
+    ['POST', '/api/shop/blocks'],
+    ['DELETE', '/api/shop/blocks/b_abc'],
+    ['POST', '/api/shop/requests/r_abc/decline'],
+    ['POST', '/api/shop/requests/r_abc/offer'],
+    ['POST', '/api/shop/requests/r_abc/cancel'],
+    ['POST', '/api/shop/requests/r_abc/push'],
     ['GET', '/api/shop/days?exclude=r_abc'],
-    ['GET', '/api/shop/export/shop-board?format=json']
+    ['GET', '/api/shop/export/shop-board?format=json'],
   ]
   for (const [method, path] of shopRoutes) {
     expectError(await api(method, path, { ip: '10.0.0.2' }), 401, 'unauthorized', `${method} ${path} without a token`)
-    expectError(await api(method, path, { token: 'not-a-real-token', ip: '10.0.0.2' }), 401, 'unauthorized', `${method} ${path} with a bad token`)
+    expectError(
+      await api(method, path, { token: 'not-a-real-token', ip: '10.0.0.2' }),
+      401,
+      'unauthorized',
+      `${method} ${path} with a bad token`,
+    )
   }
 })
 
@@ -242,20 +324,42 @@ test('right PIN gives a token; confirm makes the status view confirmed with ics_
   assert.equal(board.body.from, TUE)
   assert.equal(board.body.to, TUE)
   assert.equal(board.body.today, '2026-09-14')
-  const pending = board.body.pending.find(p => p.id === created.id)
+  const pending = board.body.pending.find((p) => p.id === created.id)
   assert.ok(pending, 'the new request is pending')
-  assert.deepEqual(Object.keys(pending).sort(), ['bays', 'created_at', 'customer', 'date', 'end', 'id', 'label', 'messages', 'offer',
-    'pushed_at', 'service', 'shop_note', 'status', 'status_url', 'time', 'updated_at'])
+  assert.deepEqual(Object.keys(pending).sort(), [
+    'bays',
+    'created_at',
+    'customer',
+    'date',
+    'end',
+    'id',
+    'label',
+    'messages',
+    'offer',
+    'pushed_at',
+    'service',
+    'shop_note',
+    'status',
+    'status_url',
+    'time',
+    'updated_at',
+  ])
   assert.deepEqual(pending.bays, [1])
   assert.deepEqual(pending.service, { id: 'oil', name: 'Oil change', minutes: 30, bays_needed: 1 })
   assert.equal(pending.status_url, created.status_url)
-  assert.deepEqual(pending.messages.map(m => m.key), ['received', 'confirmed', 'declined'])
+  assert.deepEqual(
+    pending.messages.map((m) => m.key),
+    ['received', 'confirmed', 'declined'],
+  )
   assert.deepEqual(board.body.days[0].hours, { open: '08:00', close: '17:00' })
 
   const confirmed = await api('POST', `/api/shop/requests/${created.id}/confirm`, { token })
   assert.equal(confirmed.status, 200, confirmed.text)
   assert.equal(confirmed.body.status, 'confirmed')
-  assert.deepEqual(confirmed.body.messages.map(m => m.key), ['confirmed'])
+  assert.deepEqual(
+    confirmed.body.messages.map((m) => m.key),
+    ['confirmed'],
+  )
 
   const view = await viewOf(created.token)
   assert.equal(view.status, 'confirmed')
@@ -265,8 +369,8 @@ test('right PIN gives a token; confirm makes the status view confirmed with ics_
   expectError(await api('POST', '/api/shop/requests/r_doesnotexist/confirm', { token }), 404, 'not_found')
 
   const after = (await api('GET', `/api/shop/board?date=${TUE}`, { token })).body
-  assert.ok(!after.pending.some(p => p.id === created.id), 'confirmed is no longer pending')
-  const item = after.days[0].items.find(i => i.kind === 'request' && i.request.id === created.id)
+  assert.ok(!after.pending.some((p) => p.id === created.id), 'confirmed is no longer pending')
+  const item = after.days[0].items.find((i) => i.kind === 'request' && i.request.id === created.id)
   assert.equal(item.request.status, 'confirmed')
   assert.equal(item.request.time, '09:30')
 })
@@ -279,11 +383,12 @@ test('the race: 8 customers send for the last free place at one time, exactly on
   assert.ok(!(await slotTimes('truck-rv', TUE)).includes('09:00'), 'precondition: only one bay is free at 9:00')
 
   const racers = Array.from({ length: 8 }, (_, i) =>
-    api('POST', '/api/requests', { body: booking('oil', TUE, '09:00', { name: `Racer ${i} (sample)` }), ip: `10.8.0.${i}` }))
+    api('POST', '/api/requests', { body: booking('oil', TUE, '09:00', { name: `Racer ${i} (sample)` }), ip: `10.8.0.${i}` }),
+  )
   const results = await Promise.all(racers)
-  const winners = results.filter(r => r.status === 201)
-  const losers = results.filter(r => r.status === 409)
-  console.log(`RACE winners=${winners.length} losers=${losers.length} statuses=${results.map(r => r.status).join(',')}`)
+  const winners = results.filter((r) => r.status === 201)
+  const losers = results.filter((r) => r.status === 409)
+  console.log(`RACE winners=${winners.length} losers=${losers.length} statuses=${results.map((r) => r.status).join(',')}`)
 
   assert.equal(winners.length, 1, `exactly one 201, got ${winners.length}`)
   assert.equal(losers.length, 7)
@@ -302,7 +407,7 @@ test('the race: 8 customers send for the last free place at one time, exactly on
 
   const token = await signin()
   const board = (await api('GET', `/api/shop/board?date=${TUE}`, { token })).body
-  const atNine = board.days[0].items.filter(i => i.kind === 'request' && i.request.time === '09:00')
+  const atNine = board.days[0].items.filter((i) => i.kind === 'request' && i.request.time === '09:00')
   assert.equal(atNine.length, 1, 'the board shows one holding item at 9:00')
   assert.equal(atNine[0].request.id, winners[0].body.id)
   assert.deepEqual(atNine[0].request.bays, [3])
@@ -311,7 +416,11 @@ test('the race: 8 customers send for the last free place at one time, exactly on
 // ---------------------------------------------------------------- M2
 
 test('test routes are 404 without TEST_MODE, refused before the database is touched', async () => {
-  for (const [method, path] of [['POST', '/api/test/reset'], ['POST', '/api/test/seed'], ['GET', '/api/test/holds?owner=r:x']]) {
+  for (const [method, path] of [
+    ['POST', '/api/test/reset'],
+    ['POST', '/api/test/seed'],
+    ['GET', '/api/test/holds?owner=r:x'],
+  ]) {
     const off = stubDb()
     const res = await worker.fetch(new Request(`http://local${path}`, { method }), { DB: off })
     assert.equal(res.status, 404, `${path} without TEST_MODE`)
@@ -339,7 +448,10 @@ test('decline releases the time (it is offered again), keeps the shop note, and 
   assert.equal(r.status, 200, r.text)
   assert.equal(r.body.status, 'declined')
   assert.equal(r.body.shop_note, 'We are short a mechanic that day (sample).')
-  assert.deepEqual(r.body.messages.map(m => m.key), ['declined'])
+  assert.deepEqual(
+    r.body.messages.map((m) => m.key),
+    ['declined'],
+  )
   assert.ok(r.body.messages[0].text.includes('We are short a mechanic that day (sample).'))
   assert.ok((await slotTimes('truck-rv', TUE)).includes('10:00'), 'declined time is offered again')
   assert.deepEqual(await holdsOf(a.id), { owner: `r:${a.id}`, cells: [], starts: [] })
@@ -357,33 +469,48 @@ test('offer another time, then the customer accepts; /api/shop/slots?exclude= tr
   const token = await signin()
   const a = await create('oil', TUE, '09:30') // bay 1
   for (const bay of [2, 3]) {
-    assert.equal((await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '09:30', end: '10:00', bays: [bay], label: 'Walk-in' } })).status, 201)
+    assert.equal(
+      (await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '09:30', end: '10:00', bays: [bay], label: 'Walk-in' } }))
+        .status,
+      201,
+    )
   }
   const plain = await api('GET', `/api/shop/slots?service=oil&date=${TUE}`, { token })
   assert.equal(plain.status, 200)
   assert.deepEqual(Object.keys(plain.body), ['service', 'date', 'open', 'reason', 'slots'])
-  assert.ok(!plain.body.slots.some(s => s.time === '09:30'), 'without exclude 9:30 is full')
+  assert.ok(!plain.body.slots.some((s) => s.time === '09:30'), 'without exclude 9:30 is full')
   const excluded = await api('GET', `/api/shop/slots?date=${TUE}&exclude=${a.id}`, { token })
   assert.equal(excluded.status, 200, excluded.text)
   assert.equal(excluded.body.service, 'oil')
-  assert.ok(excluded.body.slots.some(s => s.time === '09:30'), 'with exclude the request\'s own 9:30 is free')
+  assert.ok(
+    excluded.body.slots.some((s) => s.time === '09:30'),
+    "with exclude the request's own 9:30 is free",
+  )
   expectError(await api('GET', `/api/shop/slots?date=${TUE}&exclude=r_nope123`, { token }), 404, 'not_found')
 
-  const offered = await api('POST', `/api/shop/requests/${a.id}/offer`, { token, body: { date: WED, time: '10:00', note: 'We are full that morning (sample).' } })
+  const offered = await api('POST', `/api/shop/requests/${a.id}/offer`, {
+    token,
+    body: { date: WED, time: '10:00', note: 'We are full that morning (sample).' },
+  })
   assert.equal(offered.status, 200, offered.text)
   assert.equal(offered.body.status, 'offered')
   assert.equal(offered.body.time, '09:30', 'the original ask stays')
   assert.deepEqual(offered.body.offer, { date: WED, time: '10:00', end: '10:30', label: 'Wed Sep 16, 10:00 AM', bays: [1] })
-  assert.deepEqual(offered.body.messages, [{
-    key: 'offered',
-    label: 'Text with the new time',
-    text: `Hi Pat, it's SAMPLE Auto Service. We can't do Tue Sep 15 at 9:30 AM for your Oil change booking, but we can take you on Wed Sep 16 at 10:00 AM. We are full that morning (sample). Accept it or pick another time here: ${a.status_url}`
-  }])
+  assert.deepEqual(offered.body.messages, [
+    {
+      key: 'offered',
+      label: 'Text with the new time',
+      text: `Hi Pat, it's SAMPLE Auto Service. We can't do Tue Sep 15 at 9:30 AM for your Oil change booking, but we can take you on Wed Sep 16 at 10:00 AM. We are full that morning (sample). Accept it or pick another time here: ${a.status_url}`,
+    },
+  ])
   const held = await holdsOf(a.id)
-  assert.deepEqual(held.cells, [{ date: WED, bay: 1, cell: 40 }, { date: WED, bay: 1, cell: 41 }])
+  assert.deepEqual(held.cells, [
+    { date: WED, bay: 1, cell: 40 },
+    { date: WED, bay: 1, cell: 41 },
+  ])
   assert.deepEqual(held.starts, [{ date: WED, start_min: 600, n: 1 }])
   const wedBoard = (await api('GET', `/api/shop/board?date=${WED}`, { token })).body
-  assert.equal(wedBoard.days[0].items.find(i => i.kind === 'request').request.id, a.id, 'the board shows it where the hold is')
+  assert.equal(wedBoard.days[0].items.find((i) => i.kind === 'request').request.id, a.id, 'the board shows it where the hold is')
   const customer = await viewOf(a.token)
   assert.equal(customer.status, 'offered')
   assert.deepEqual(customer.offer, { date: WED, time: '10:00', end: '10:30', label: 'Wed Sep 16, 10:00 AM' })
@@ -404,7 +531,9 @@ test('offer refusals: busy over a block, taken at a full start, bad_state once c
   await reset()
   const token = await signin()
   const b = await create('oil', TUE, '11:00')
-  const block = (await api('POST', '/api/shop/blocks', { token, body: { date: WED, time: '13:00', end: '14:00', bays: 'all', label: 'Walk-in' } })).body.block
+  const block = (
+    await api('POST', '/api/shop/blocks', { token, body: { date: WED, time: '13:00', end: '14:00', bays: 'all', label: 'Walk-in' } })
+  ).body.block
   const busy = await api('POST', `/api/shop/requests/${b.id}/offer`, { token, body: { date: WED, time: '13:00' } })
   expectError(busy, 409, 'busy')
   assert.deepEqual(busy.body.conflicts, [{ id: block.id, name: 'Walk-in', label: 'Wed Sep 16, 1:00 PM', bays: [1, 2, 3] }])
@@ -431,7 +560,10 @@ test('repick moves a requested or offered booking in one batch; taken gives next
   assert.equal(moved.status, 200, moved.text)
   assert.equal(moved.body.status, 'requested')
   assert.equal(moved.body.time, '14:00')
-  assert.deepEqual((await holdsOf(a.id)).cells, [{ date: TUE, bay: 1, cell: 56 }, { date: TUE, bay: 1, cell: 57 }])
+  assert.deepEqual((await holdsOf(a.id)).cells, [
+    { date: TUE, bay: 1, cell: 56 },
+    { date: TUE, bay: 1, cell: 57 },
+  ])
 
   await create('oil', THU, '10:00')
   await create('oil', THU, '10:00')
@@ -506,23 +638,33 @@ test('.ics is text/calendar with UTC DTSTART for a NL date in September (NDT, UT
 test('block-out removes times, refuses over a hold with conflicts, and can be deleted', async () => {
   await reset()
   const token = await signin()
-  const made = await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '12:00', end: '13:00', bays: 'all', label: 'Walk-in' } })
+  const made = await api('POST', '/api/shop/blocks', {
+    token,
+    body: { date: TUE, time: '12:00', end: '13:00', bays: 'all', label: 'Walk-in' },
+  })
   assert.equal(made.status, 201, made.text)
   assert.deepEqual(Object.keys(made.body), ['block'])
   const block = made.body.block
   assert.match(block.id, /^b_[a-z0-9]+$/)
-  assert.deepEqual({ ...block, id: undefined }, { id: undefined, date: TUE, time: '12:00', end: '13:00', label: 'Walk-in', bays: [1, 2, 3] })
+  assert.deepEqual(
+    { ...block, id: undefined },
+    { id: undefined, date: TUE, time: '12:00', end: '13:00', label: 'Walk-in', bays: [1, 2, 3] },
+  )
   const oil = await slotTimes('oil', TUE)
   assert.ok(!oil.includes('12:00') && !oil.includes('12:30'))
   assert.ok(oil.includes('11:30') && oil.includes('13:00'))
   const items = (await api('GET', `/api/shop/board?date=${TUE}`, { token })).body.days[0].items
-  assert.deepEqual(items.find(i => i.kind === 'block').block, block)
+  assert.deepEqual(items.find((i) => i.kind === 'block').block, block)
 
   const a = await create('oil', TUE, '15:00')
   const refused = await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '15:00', end: '16:00', bays: [1] } })
   expectError(refused, 409, 'busy')
   assert.deepEqual(refused.body.conflicts, [{ id: a.id, name: 'Pat Sample (sample)', label: 'Tue Sep 15, 3:00 PM', bays: [1] }])
-  assert.equal((await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '15:00', end: '16:00', bays: [2] } })).status, 201, 'bay 2 is free')
+  assert.equal(
+    (await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '15:00', end: '16:00', bays: [2] } })).status,
+    201,
+    'bay 2 is free',
+  )
 
   const del = await api('DELETE', `/api/shop/blocks/${block.id}`, { token })
   assert.deepEqual([del.status, del.body], [200, { ok: true }])
@@ -530,16 +672,21 @@ test('block-out removes times, refuses over a hold with conflicts, and can be de
   expectError(await api('DELETE', `/api/shop/blocks/${block.id}`, { token }), 404, 'not_found')
 
   for (const [body, field] of [
-    [{ date: TUE, time: '12:00', end: '13:00', bays: [4] }, 'bays'], [{ date: TUE, time: '12:00', end: '11:00', bays: [1] }, 'end'],
-    [{ date: '2026-09-13', time: '12:00', end: '13:00', bays: [1] }, 'date'], [{ date: TUE, time: '12:10', end: '13:00', bays: [1] }, 'time'],
+    [{ date: TUE, time: '12:00', end: '13:00', bays: [4] }, 'bays'],
+    [{ date: TUE, time: '12:00', end: '11:00', bays: [1] }, 'end'],
+    [{ date: '2026-09-13', time: '12:00', end: '13:00', bays: [1] }, 'date'],
+    [{ date: TUE, time: '12:10', end: '13:00', bays: [1] }, 'time'],
     [{ date: TUE, time: '12:00', end: '13:00', bays: [1], label: '' }, 'label'],
-    [{ date: TUE, time: '12:00', end: '13:00', bays: [1], label: 'x'.repeat(41) }, 'label']
+    [{ date: TUE, time: '12:00', end: '13:00', bays: [1], label: 'x'.repeat(41) }, 'label'],
   ]) {
     const r = await api('POST', '/api/shop/blocks', { token, body })
     expectError(r, 400, 'bad_request', JSON.stringify(body))
     assert.equal(r.body.field, field)
   }
-  const forty = await api('POST', '/api/shop/blocks', { token, body: { date: THU, time: '12:00', end: '13:00', bays: [1], label: 'x'.repeat(40) } })
+  const forty = await api('POST', '/api/shop/blocks', {
+    token,
+    body: { date: THU, time: '12:00', end: '13:00', bays: [1], label: 'x'.repeat(40) },
+  })
   assert.equal(forty.status, 201, 'control: a 40-character label is accepted (API.md clarification 20)')
   assert.equal(forty.body.block.label.length, 40)
 })
@@ -550,8 +697,27 @@ test('settings: GET shape, PUT round trip, full validation with the field named'
   const got = await api('GET', '/api/shop/settings', { token })
   assert.equal(got.status, 200)
   const s = got.body
-  assert.deepEqual(Object.keys(s), ['shop_name', 'timezone', 'bays', 'slot_step_min', 'lead_time_min', 'max_per_slot', 'window_days', 'hours', 'closures', 'services'])
-  assert.deepEqual(s.hours, { 0: null, 1: { open: '08:00', close: '17:00' }, 2: { open: '08:00', close: '17:00' }, 3: { open: '08:00', close: '17:00' }, 4: { open: '08:00', close: '17:00' }, 5: { open: '08:00', close: '17:00' }, 6: { open: '09:00', close: '13:00' } })
+  assert.deepEqual(Object.keys(s), [
+    'shop_name',
+    'timezone',
+    'bays',
+    'slot_step_min',
+    'lead_time_min',
+    'max_per_slot',
+    'window_days',
+    'hours',
+    'closures',
+    'services',
+  ])
+  assert.deepEqual(s.hours, {
+    0: null,
+    1: { open: '08:00', close: '17:00' },
+    2: { open: '08:00', close: '17:00' },
+    3: { open: '08:00', close: '17:00' },
+    4: { open: '08:00', close: '17:00' },
+    5: { open: '08:00', close: '17:00' },
+    6: { open: '09:00', close: '13:00' },
+  })
   assert.deepEqual(s.closures, [{ date: '2026-09-21', reason: 'Staff training (sample)' }])
   assert.ok(!('pin' in s), 'the PIN hash never leaves the Worker')
   const put = await api('PUT', '/api/shop/settings', { token, body: s })
@@ -560,15 +726,144 @@ test('settings: GET shape, PUT round trip, full validation with the field named'
 
   const clone = () => structuredClone(s)
   const cases = [
-    ['shop_name', x => { x.shop_name = '' }], ['timezone', x => { x.timezone = 'America/Halifax' }], ['bays', x => { x.bays = 0 }],
-    ['bays', x => { x.bays = 11 }], ['slot_step_min', x => { x.slot_step_min = 20 }], ['lead_time_min', x => { x.lead_time_min = -1 }],
-    ['lead_time_min', x => { x.lead_time_min = 2881 }], ['max_per_slot', x => { x.max_per_slot = 0 }], ['window_days', x => { x.window_days = 61 }],
-    ['hours', x => { x.hours['1'] = { open: '09:10', close: '17:00' } }], ['hours', x => { delete x.hours['6'] }],
-    ['hours', x => { x.hours['2'] = { open: '17:00', close: '08:00' } }], ['closures', x => { x.closures[0].reason = '' }],
-    ['closures', x => { x.closures.push({ date: '2026-9-22', reason: 'x' }) }], ['closures', x => { x.closures.push({ ...x.closures[0] }) }],
-    ['services', x => { x.services = [] }], ['services', x => { x.services[1].id = 'oil' }], ['services', x => { x.services[0].minutes = 50 }],
-    ['services', x => { x.services[4].bays_needed = 4 }], ['services', x => { x.services[0].active = 'yes' }], ['services', x => { x.services[0].id = 'Oil Change' }],
-    ['services', x => { x.services[0].name = 'n'.repeat(41) }], ['bays', x => { x.bays = '3' }]
+    [
+      'shop_name',
+      (x) => {
+        x.shop_name = ''
+      },
+    ],
+    [
+      'timezone',
+      (x) => {
+        x.timezone = 'America/Halifax'
+      },
+    ],
+    [
+      'bays',
+      (x) => {
+        x.bays = 0
+      },
+    ],
+    [
+      'bays',
+      (x) => {
+        x.bays = 11
+      },
+    ],
+    [
+      'slot_step_min',
+      (x) => {
+        x.slot_step_min = 20
+      },
+    ],
+    [
+      'lead_time_min',
+      (x) => {
+        x.lead_time_min = -1
+      },
+    ],
+    [
+      'lead_time_min',
+      (x) => {
+        x.lead_time_min = 2881
+      },
+    ],
+    [
+      'max_per_slot',
+      (x) => {
+        x.max_per_slot = 0
+      },
+    ],
+    [
+      'window_days',
+      (x) => {
+        x.window_days = 61
+      },
+    ],
+    [
+      'hours',
+      (x) => {
+        x.hours['1'] = { open: '09:10', close: '17:00' }
+      },
+    ],
+    [
+      'hours',
+      (x) => {
+        delete x.hours['6']
+      },
+    ],
+    [
+      'hours',
+      (x) => {
+        x.hours['2'] = { open: '17:00', close: '08:00' }
+      },
+    ],
+    [
+      'closures',
+      (x) => {
+        x.closures[0].reason = ''
+      },
+    ],
+    [
+      'closures',
+      (x) => {
+        x.closures.push({ date: '2026-9-22', reason: 'x' })
+      },
+    ],
+    [
+      'closures',
+      (x) => {
+        x.closures.push({ ...x.closures[0] })
+      },
+    ],
+    [
+      'services',
+      (x) => {
+        x.services = []
+      },
+    ],
+    [
+      'services',
+      (x) => {
+        x.services[1].id = 'oil'
+      },
+    ],
+    [
+      'services',
+      (x) => {
+        x.services[0].minutes = 50
+      },
+    ],
+    [
+      'services',
+      (x) => {
+        x.services[4].bays_needed = 4
+      },
+    ],
+    [
+      'services',
+      (x) => {
+        x.services[0].active = 'yes'
+      },
+    ],
+    [
+      'services',
+      (x) => {
+        x.services[0].id = 'Oil Change'
+      },
+    ],
+    [
+      'services',
+      (x) => {
+        x.services[0].name = 'n'.repeat(41)
+      },
+    ],
+    [
+      'bays',
+      (x) => {
+        x.bays = '3'
+      },
+    ],
   ]
   for (const [field, mutate] of cases) {
     const body = clone()
@@ -594,13 +889,20 @@ test('settings: a bay change is seen through /api/slots; bays_in_use refuses low
 
   await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '16:00', end: '16:30', bays: [1, 2] } })
   const onBay3 = await create('oil', TUE, '16:00')
-  assert.deepEqual((await holdsOf(onBay3.id)).cells.map(c => c.bay), [3, 3])
+  assert.deepEqual(
+    (await holdsOf(onBay3.id)).cells.map((c) => c.bay),
+    [3, 3],
+  )
   const refused = await api('PUT', '/api/shop/settings', { token, body: { ...s, bays: 2 } })
   expectError(refused, 409, 'bays_in_use')
   assert.equal(refused.body.error, 'Bay 3 has 1 booking from Tue Sep 15. Move or decline it first.')
   assert.equal((await api('GET', '/api/shop')).body.bays, 3, 'the refused save changed nothing')
   await api('POST', `/api/shop/requests/${onBay3.id}/decline`, { token })
-  assert.equal((await api('PUT', '/api/shop/settings', { token, body: { ...s, bays: 2 } })).status, 200, 'after declining it the change goes through')
+  assert.equal(
+    (await api('PUT', '/api/shop/settings', { token, body: { ...s, bays: 2 } })).status,
+    200,
+    'after declining it the change goes through',
+  )
 })
 
 test('settings: editing or deactivating a service never changes an existing request', async () => {
@@ -614,7 +916,7 @@ test('settings: editing or deactivating a service never changes an existing requ
   assert.deepEqual((await viewOf(a.token)).service, { id: 'oil', name: 'Oil change', minutes: 30 })
   renamed.services[0].active = false
   assert.equal((await api('PUT', '/api/shop/settings', { token, body: renamed })).status, 200)
-  assert.ok(!(await api('GET', '/api/shop')).body.services.some(x => x.id === 'oil'))
+  assert.ok(!(await api('GET', '/api/shop')).body.services.some((x) => x.id === 'oil'))
   expectError(await api('GET', `/api/slots?service=oil&date=${TUE}`), 400, 'bad_request')
   assert.equal((await viewOf(a.token)).end, '09:30')
   assert.equal((await api('GET', `/api/shop/slots?date=${WED}&exclude=${a.id}`, { token })).status, 200, 'the shop can still move it')
@@ -649,11 +951,16 @@ test('sign out ends the session', async () => {
 
 test('sign-in rate guard: 5 wrong PINs in 15 minutes from one IP gives 429, even for the right PIN', async () => {
   await reset()
-  for (let i = 0; i < 5; i++) expectError(await api('POST', '/api/shop/signin', { body: { pin: '0000' }, ip: '192.0.2.1' }), 401, 'unauthorized', `try ${i + 1}`)
+  for (let i = 0; i < 5; i++)
+    expectError(await api('POST', '/api/shop/signin', { body: { pin: '0000' }, ip: '192.0.2.1' }), 401, 'unauthorized', `try ${i + 1}`)
   const locked = await api('POST', '/api/shop/signin', { body: { pin: '2468' }, ip: '192.0.2.1' })
   expectError(locked, 429, 'rate_limited')
   assert.equal((await api('POST', '/api/shop/signin', { body: { pin: '2468' }, ip: '192.0.2.2' })).status, 200, 'another IP is not locked')
-  assert.equal((await api('POST', '/api/shop/signin', { body: { pin: '2468' }, ip: '192.0.2.1', now: later(16) })).status, 200, '16 minutes later it works')
+  assert.equal(
+    (await api('POST', '/api/shop/signin', { body: { pin: '2468' }, ip: '192.0.2.1', now: later(16) })).status,
+    200,
+    '16 minutes later it works',
+  )
 })
 
 test('request rate guard: 12 requests an hour from one IP, the 13th is 429', async () => {
@@ -663,32 +970,45 @@ test('request rate guard: 12 requests an hour from one IP, the 13th is 429', asy
   const blocked = await api('POST', '/api/requests', { body: booking('oil', TUE, '14:00'), ip: '198.51.100.20' })
   expectError(blocked, 429, 'rate_limited')
   assert.equal((await api('POST', '/api/requests', { body: booking('oil', TUE, '14:00'), ip: '198.51.100.21' })).status, 201)
-  assert.equal((await api('POST', '/api/requests', { body: booking('oil', TUE, '14:30'), ip: '198.51.100.20', now: later(61) })).status, 201, 'an hour later it works')
+  assert.equal(
+    (await api('POST', '/api/requests', { body: booking('oil', TUE, '14:30'), ip: '198.51.100.20', now: later(61) })).status,
+    201,
+    'an hour later it works',
+  )
 })
 
 test('messages read right for every service name', async () => {
   await reset()
   const token = await signin()
   const made = [
-    await create('oil', TUE, '08:00'), await create('tire-swap', TUE, '09:00'), await create('brakes', TUE, '10:00'),
-    await create('diagnostic', TUE, '13:00'), await create('truck-rv', WED, '10:00')
+    await create('oil', TUE, '08:00'),
+    await create('tire-swap', TUE, '09:00'),
+    await create('brakes', TUE, '10:00'),
+    await create('diagnostic', TUE, '13:00'),
+    await create('truck-rv', WED, '10:00'),
   ]
   const pending = (await api('GET', '/api/shop/board', { token })).body.pending
   assert.equal(pending.length, 5)
   for (const p of pending) {
-    assert.deepEqual(p.messages.map(m => m.key), ['received', 'confirmed', 'declined'])
+    assert.deepEqual(
+      p.messages.map((m) => m.key),
+      ['received', 'confirmed', 'declined'],
+    )
     for (const m of p.messages) {
       assert.ok(m.text.includes(p.service.name), `${m.key} names "${p.service.name}" as written`)
       assert.doesNotMatch(m.text, /\b(is|are) booked\b|your (brakes|oil change|tire swap|diagnostic|truck or rv service)\b/, m.text)
       assert.ok(m.text.endsWith(p.status_url), 'ends with the status link path')
     }
   }
-  const brakes = pending.find(p => p.service.id === 'brakes')
-  assert.deepEqual(brakes.messages.map(m => m.text), [
-    `Hi Pat, it's SAMPLE Auto Service. We got your request for Brakes on Tue Sep 15 at 10:00 AM. We'll confirm it soon. Details: ${made[2].status_url}`,
-    `Hi Pat, it's SAMPLE Auto Service. Your Brakes booking is confirmed for Tue Sep 15 at 10:00 AM. Details: ${made[2].status_url}`,
-    `Hi Pat, it's SAMPLE Auto Service. Sorry, we can't fit in your Brakes booking on Tue Sep 15 at 10:00 AM. Details: ${made[2].status_url}`
-  ])
+  const brakes = pending.find((p) => p.service.id === 'brakes')
+  assert.deepEqual(
+    brakes.messages.map((m) => m.text),
+    [
+      `Hi Pat, it's SAMPLE Auto Service. We got your request for Brakes on Tue Sep 15 at 10:00 AM. We'll confirm it soon. Details: ${made[2].status_url}`,
+      `Hi Pat, it's SAMPLE Auto Service. Your Brakes booking is confirmed for Tue Sep 15 at 10:00 AM. Details: ${made[2].status_url}`,
+      `Hi Pat, it's SAMPLE Auto Service. Sorry, we can't fit in your Brakes booking on Tue Sep 15 at 10:00 AM. Details: ${made[2].status_url}`,
+    ],
+  )
 })
 
 test('seed: a SAMPLE week whose pending list is oldest request first', async () => {
@@ -698,13 +1018,16 @@ test('seed: a SAMPLE week whose pending list is oldest request first', async () 
   assert.equal(seeded.body.requests, 7)
   const token = await signin()
   const board = (await api('GET', '/api/shop/board?days=7', { token })).body
-  assert.deepEqual(board.pending.map(p => p.customer.name), ['Jordan Byrne (sample)', 'Sam Oake (sample)', 'Terry Pardy (sample)', 'Morgan Lush (sample)'])
-  const created = board.pending.map(p => p.created_at)
+  assert.deepEqual(
+    board.pending.map((p) => p.customer.name),
+    ['Jordan Byrne (sample)', 'Sam Oake (sample)', 'Terry Pardy (sample)', 'Morgan Lush (sample)'],
+  )
+  const created = board.pending.map((p) => p.created_at)
   assert.deepEqual([...created].sort(), created)
   assert.equal(new Set(created).size, created.length, 'no two share a created_at')
-  const all = board.days.flatMap(d => d.items)
-  for (const i of all.filter(i => i.kind === 'request')) assert.match(i.request.customer.name, /\(sample\)$/)
-  assert.equal(all.filter(i => i.kind === 'block').length, 1)
+  const all = board.days.flatMap((d) => d.items)
+  for (const i of all.filter((i) => i.kind === 'request')) assert.match(i.request.customer.name, /\(sample\)$/)
+  assert.equal(all.filter((i) => i.kind === 'block').length, 1)
 })
 
 test('Confirm and Decline at once, 10 times over: holds are present if and only if the final status holds time', async () => {
@@ -718,26 +1041,24 @@ test('Confirm and Decline at once, 10 times over: holds are present if and only 
     assert.equal(held.cells.length, 2)
     const fire = [
       () => api('POST', `/api/shop/requests/${a.id}/confirm`, { token }),
-      () => api('POST', `/api/shop/requests/${a.id}/decline`, { token })
+      () => api('POST', `/api/shop/requests/${a.id}/decline`, { token }),
     ]
     if (run % 2) fire.reverse()
-    const responses = await Promise.all(fire.map(f => f()))
+    const responses = await Promise.all(fire.map((f) => f()))
     const status = (await viewOf(a.token)).status
     const holds = await holdsOf(a.id)
     outcomes.push(`${status}:${holds.cells.length}c${holds.starts.length}s`)
     const holding = ['requested', 'offered', 'confirmed'].includes(status)
-    const consistent = holding
-      ? JSON.stringify(holds) === JSON.stringify(held)
-      : holds.cells.length === 0 && holds.starts.length === 0
+    const consistent = holding ? JSON.stringify(holds) === JSON.stringify(held) : holds.cells.length === 0 && holds.starts.length === 0
     if (!consistent) bad.push(`run ${run}: ${status} with ${holds.cells.length} cells, ${holds.starts.length} starts`)
-    const codes = responses.map(r => r.status).sort()
+    const codes = responses.map((r) => r.status).sort()
     if (codes.join() !== '200,409') bad.push(`run ${run}: responses ${codes.join()}`)
   }
   console.log(`STATUS-RACE outcomes=${outcomes.join(',')} bad=${bad.length}`)
   assert.deepEqual(bad, [])
 })
 
-test('push to Shop Board: 200 sets pushed_at; a taken or busy row is 502 with Shop Board\'s own words', async () => {
+test("push to Shop Board: 200 sets pushed_at; a taken or busy row is 502 with Shop Board's own words", async () => {
   await reset()
   assert.equal((await fetch(`${FAKE}/__reset`, { method: 'POST' })).status, 200, `the fake Shop Board answers on ${FAKE}`)
   const token = await signin()
@@ -751,21 +1072,34 @@ test('push to Shop Board: 200 sets pushed_at; a taken or busy row is 502 with Sh
   assert.equal(pushed.body.shop_board.status, 200)
   assert.deepEqual(Object.keys(pushed.body.shop_board.body), ['id', 'booking', 'rejected'])
   assert.equal(pushed.body.shop_board.body.id, sbId)
-  const landed = (await (await fetch(`${FAKE}/__bookings`)).json()).bookings.find(b => b.id === sbId)
-  assert.deepEqual({ date: landed.date, slot: landed.slot, bay: landed.bay, estTime: landed.estTime, issue: landed.issue, updatedBy: landed.updatedBy },
-    { date: TUE, slot: '9:00', bay: '1', estTime: '30m', issue: 'Oil change (booked online for 9:30 AM)', updatedBy: 'Book a Bay' })
-  const item = (await api('GET', `/api/shop/board?date=${TUE}`, { token })).body.days[0].items.find(i => i.request?.id === a.id)
+  const landed = (await (await fetch(`${FAKE}/__bookings`)).json()).bookings.find((b) => b.id === sbId)
+  assert.deepEqual(
+    { date: landed.date, slot: landed.slot, bay: landed.bay, estTime: landed.estTime, issue: landed.issue, updatedBy: landed.updatedBy },
+    { date: TUE, slot: '9:00', bay: '1', estTime: '30m', issue: 'Oil change (booked online for 9:30 AM)', updatedBy: 'Book a Bay' },
+  )
+  const item = (await api('GET', `/api/shop/board?date=${TUE}`, { token })).body.days[0].items.find((i) => i.request?.id === a.id)
   assert.equal(item.request.pushed_at, NOW_ISO)
 
-  const sb = (id, fields) => fetch(`${FAKE}/api/bookings/${id}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ fields, at: NOW_ISO, by: 'Front desk' }) })
+  const sb = (id, fields) =>
+    fetch(`${FAKE}/api/bookings/${id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ fields, at: NOW_ISO, by: 'Front desk' }),
+    })
   assert.equal((await sb('sb-walkin-01', { date: WED, slot: '10:00', bay: '1', name: 'Walk-in (sample)', estTime: '30m' })).status, 200)
   const b = await create('oil', WED, '10:00')
   await api('POST', `/api/shop/requests/${b.id}/confirm`, { token })
   const taken = await api('POST', `/api/shop/requests/${b.id}/push`, { token })
   expectError(taken, 502, 'shop_board_error')
-  assert.deepEqual(taken.body.shop_board, { status: 409, body: { error: '10:00 is taken', code: 'taken', conflict: { slot: '10:00', bay: '1' } } })
+  assert.deepEqual(taken.body.shop_board, {
+    status: 409,
+    body: { error: '10:00 is taken', code: 'taken', conflict: { slot: '10:00', bay: '1' } },
+  })
   assert.ok(taken.body.error.includes('10:00 is taken'), taken.body.error)
-  assert.equal((await api('GET', `/api/shop/board?date=${WED}`, { token })).body.days[0].items.find(i => i.request?.id === b.id).request.pushed_at, null)
+  assert.equal(
+    (await api('GET', `/api/shop/board?date=${WED}`, { token })).body.days[0].items.find((i) => i.request?.id === b.id).request.pushed_at,
+    null,
+  )
 
   assert.equal((await sb('sb-long-job-01', { date: THU, slot: '8:00', bay: '1', name: 'Long job (sample)', estTime: '2h' })).status, 200)
   const d = await create('brakes', THU, '09:00')
@@ -773,12 +1107,17 @@ test('push to Shop Board: 200 sets pushed_at; a taken or busy row is 502 with Sh
   const busy = await api('POST', `/api/shop/requests/${d.id}/push`, { token })
   expectError(busy, 502, 'shop_board_error')
   assert.equal(busy.body.shop_board.status, 409)
-  assert.deepEqual(busy.body.shop_board.body, { error: 'Bay 1 is busy until 11:00 with Long job (sample)', code: 'busy', conflict: { slot: '8:00', bay: '1', until: '11:00', with: 'Long job (sample)' } })
+  assert.deepEqual(busy.body.shop_board.body, {
+    error: 'Bay 1 is busy until 11:00 with Long job (sample)',
+    code: 'busy',
+    conflict: { slot: '8:00', bay: '1', until: '11:00', with: 'Long job (sample)' },
+  })
   assert.ok(busy.body.error.includes('Bay 1 is busy until 11:00 with Long job (sample)'), busy.body.error)
 })
 
 test('push with no SHOP_BOARD_URL is 501 not_configured', async () => {
-  const request = () => new Request('http://local/api/shop/requests/r_abc123/push', { method: 'POST', headers: { Authorization: 'Bearer some-session-token' } })
+  const request = () =>
+    new Request('http://local/api/shop/requests/r_abc123/push', { method: 'POST', headers: { Authorization: 'Bearer some-session-token' } })
   const res = await worker.fetch(request(), { DB: stubDb() })
   assert.equal(res.status, 501)
   const body = await res.json()
@@ -801,14 +1140,27 @@ test('export for Shop Board: confirmed only, JSON patches and CSV', async () => 
   assert.deepEqual(j.body, {
     format: 'shop-board-patches/v1',
     target: 'PUT /api/bookings/:id',
-    items: [{
-      id: `bab-${a.id.slice(2)}`,
-      patch: {
-        fields: { date: TUE, slot: '9:00', bay: '1', name: 'Pat Sample (sample)', phone: '709-555-0142', year: '2016', make: 'Toyota', model: 'Corolla', issue: 'Oil change (booked online for 9:30 AM)', estTime: '30m' },
-        at: NOW_ISO,
-        by: 'Book a Bay'
-      }
-    }]
+    items: [
+      {
+        id: `bab-${a.id.slice(2)}`,
+        patch: {
+          fields: {
+            date: TUE,
+            slot: '9:00',
+            bay: '1',
+            name: 'Pat Sample (sample)',
+            phone: '709-555-0142',
+            year: '2016',
+            make: 'Toyota',
+            model: 'Corolla',
+            issue: 'Oil change (booked online for 9:30 AM)',
+            estTime: '30m',
+          },
+          at: NOW_ISO,
+          by: 'Book a Bay',
+        },
+      },
+    ],
   })
   const csv = await api('GET', `/api/shop/export/shop-board?from=${TUE}&to=${WED}&format=csv`, { token })
   assert.equal(csv.status, 200)
@@ -816,7 +1168,7 @@ test('export for Shop Board: confirmed only, JSON patches and CSV', async () => 
   assert.deepEqual(csv.text.split('\r\n'), [
     'id,date,slot,bay,name,phone,year,make,model,issue,estTime',
     `bab-${a.id.slice(2)},2026-09-15,9:00,1,Pat Sample (sample),709-555-0142,2016,Toyota,Corolla,Oil change (booked online for 9:30 AM),30m`,
-    ''
+    '',
   ])
   const none = await api('GET', `/api/shop/export/shop-board?from=${WED}&to=${WED}`, { token })
   assert.deepEqual(none.body.items, [])
@@ -835,43 +1187,57 @@ test('lowering bays while bookings are in flight: never a hold above the stored 
     await reset()
     const token = await signin()
     const s = (await api('GET', '/api/shop/settings', { token })).body
-    assert.equal((await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '11:00', end: '11:30', bays: [1, 2] } })).status, 201)
+    assert.equal(
+      (await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '11:00', end: '11:30', bays: [1, 2] } })).status,
+      201,
+    )
     assert.ok((await slotTimes('oil', TUE)).includes('11:00'), 'precondition: 11:00 is open on bay 3')
 
     // Send timing only (client side): stagger = (run - offset) * step ms; negative sends the bookings first, positive the
     // save. Defaults (offset 5, step 3) run from bookings 15 ms ahead to the save 12 ms ahead, so both orderings really
     // happen instead of the save always landing first. negative:bays sweeps its own window because its copies add latency.
     const stagger = (run - Number(process.env.BAYS_RACE_STAGGER_OFFSET || 5)) * Number(process.env.BAYS_RACE_STAGGER_STEP_MS || 3)
-    const pause = ms => new Promise(r => setTimeout(r, Math.max(0, ms)))
+    const pause = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms)))
     const save = pause(-stagger).then(() => api('PUT', '/api/shop/settings', { token, body: { ...s, bays: 2 } }))
-    const bookings = Array.from({ length: 6 }, (_, i) => pause(stagger).then(() =>
-      api('POST', '/api/requests', { body: booking('oil', TUE, '11:00', { name: `Bay Racer ${i} (sample)` }), ip: `10.7.${run}.${i}` })))
+    const bookings = Array.from({ length: 6 }, (_, i) =>
+      pause(stagger).then(() =>
+        api('POST', '/api/requests', { body: booking('oil', TUE, '11:00', { name: `Bay Racer ${i} (sample)` }), ip: `10.7.${run}.${i}` }),
+      ),
+    )
     const [saved, ...booked] = await Promise.all([save, ...bookings])
 
     const stored = (await api('GET', '/api/shop')).body.bays
-    const winners = booked.filter(r => r.status === 201)
-    const cells = (await Promise.all(winners.map(w => holdsOf(w.body.id)))).flatMap(h => h.cells)
-    const onBay3 = cells.some(cell => cell.bay === 3)
+    const winners = booked.filter((r) => r.status === 201)
+    const cells = (await Promise.all(winners.map((w) => holdsOf(w.body.id)))).flatMap((h) => h.cells)
+    const onBay3 = cells.some((cell) => cell.bay === 3)
     outcomes.push(`save${saved.status}:bays${stored}:${winners.length}w:${onBay3 ? 'bay3' : 'nobay3'}`)
 
-    const above = cells.filter(cell => cell.bay > stored)
+    const above = cells.filter((cell) => cell.bay > stored)
     if (above.length) bad.push(`run ${run}: stored bays ${stored} but a booking holds bay ${above[0].bay}`)
     if (saved.status === 200) {
       if (stored !== 2 || winners.length || onBay3) bad.push(`run ${run}: save 200 but bays ${stored}, ${winners.length} winners`)
     } else if (saved.status === 409) {
-      if (saved.body.code !== 'bays_in_use' || stored !== 3 || winners.length !== 1 || !onBay3) bad.push(`run ${run}: save 409 ${saved.body.code} but bays ${stored}, ${winners.length} winners`)
+      if (saved.body.code !== 'bays_in_use' || stored !== 3 || winners.length !== 1 || !onBay3)
+        bad.push(`run ${run}: save 409 ${saved.body.code} but bays ${stored}, ${winners.length} winners`)
     } else {
       bad.push(`run ${run}: save answered ${saved.status} ${saved.text}`)
     }
     for (const r of booked) {
-      if (r.status !== 201 && !(r.status === 409 && r.body.code === 'taken')) bad.push(`run ${run}: a booking answered ${r.status} ${r.text}`)
+      if (r.status !== 201 && !(r.status === 409 && r.body.code === 'taken'))
+        bad.push(`run ${run}: a booking answered ${r.status} ${r.text}`)
     }
   }
   console.log(`BAYS-RACE outcomes=${outcomes.join(',')} bad=${bad.length}`)
   assert.deepEqual(bad, [])
   // Both ways must have happened, or this run only measured one side of the guard.
-  assert.ok(outcomes.some(o => o.startsWith('save200')), 'at least one run where the save won')
-  assert.ok(outcomes.some(o => o.startsWith('save409')), 'at least one run where a booking won')
+  assert.ok(
+    outcomes.some((o) => o.startsWith('save200')),
+    'at least one run where the save won',
+  )
+  assert.ok(
+    outcomes.some((o) => o.startsWith('save409')),
+    'at least one run where a booking won',
+  )
 })
 
 test('shop view: an offered request carries the bays its offer holds; the customer view does not', async () => {
@@ -883,15 +1249,15 @@ test('shop view: an offered request carries the bays its offer holds; the custom
   const offered = await api('POST', `/api/shop/requests/${a.id}/offer`, { token, body: { date: WED, time: '10:00' } })
   assert.equal(offered.status, 200, offered.text)
 
-  const heldBays = [...new Set((await holdsOf(a.id)).cells.map(cell => cell.bay))]
+  const heldBays = [...new Set((await holdsOf(a.id)).cells.map((cell) => cell.bay))]
   assert.deepEqual(heldBays, [2, 3], 'precondition: the offer holds bays 2 and 3')
   const offer = { date: WED, time: '10:00', end: '12:00', label: 'Wed Sep 16, 10:00 AM' }
   assert.deepEqual(offered.body.offer, { ...offer, bays: heldBays })
   const board = (await api('GET', `/api/shop/board?date=${WED}`, { token })).body
-  const item = board.days[0].items.find(i => i.kind === 'request' && i.request.id === a.id)
+  const item = board.days[0].items.find((i) => i.kind === 'request' && i.request.id === a.id)
   assert.deepEqual(item.request.offer, { ...offer, bays: heldBays }, 'board item offer.bays = the bays the offer holds')
   assert.deepEqual(item.request.bays, [1, 2], 'the request keeps its original bays')
-  assert.deepEqual(board.pending.find(p => p.id === a.id).offer.bays, heldBays)
+  assert.deepEqual(board.pending.find((p) => p.id === a.id).offer.bays, heldBays)
   assert.deepEqual((await viewOf(a.token)).offer, offer, 'the customer view offer has no bays')
 })
 
@@ -900,9 +1266,16 @@ test('every miss under /api/r/ is 404 with the booking text, whatever the token 
   await reset()
   const miss = { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' }
   const cases = [
-    ['GET', '/api/r/nope'], ['GET', '/api/r/abc$def'], ['POST', '/api/r/nope/accept'],
-    ['POST', '/api/r/nope/repick'], ['POST', '/api/r/nope/cancel'], ['GET', '/api/r/nope/ics'], ['POST', '/api/r/abc$def/cancel'],
-    ['GET', '/api/r/abc%20def'], ['GET', '/api/r/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'], ['GET', `/api/r/${'x'.repeat(200)}`]
+    ['GET', '/api/r/nope'],
+    ['GET', '/api/r/abc$def'],
+    ['POST', '/api/r/nope/accept'],
+    ['POST', '/api/r/nope/repick'],
+    ['POST', '/api/r/nope/cancel'],
+    ['GET', '/api/r/nope/ics'],
+    ['POST', '/api/r/abc$def/cancel'],
+    ['GET', '/api/r/abc%20def'],
+    ['GET', '/api/r/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'],
+    ['GET', `/api/r/${'x'.repeat(200)}`],
   ]
   for (const [method, path] of cases) {
     const r = await api(method, path)
@@ -920,7 +1293,7 @@ test('move pickers use the request snapshot: an offline service can still be mov
   const a = await create('oil', TUE, '09:30')
   const s = (await api('GET', '/api/shop/settings', { token })).body
   const offline = structuredClone(s)
-  offline.services.find(x => x.id === 'oil').active = false
+  offline.services.find((x) => x.id === 'oil').active = false
   assert.equal((await api('PUT', '/api/shop/settings', { token, body: offline })).status, 200)
 
   const refused = await api('GET', '/api/days?service=oil')
@@ -933,8 +1306,11 @@ test('move pickers use the request snapshot: an offline service can still be mov
   assert.equal(shopDays.body.service, 'oil')
   assert.equal(shopDays.body.days.length, 14)
   for (const d of shopDays.body.days) assert.deepEqual(Object.keys(d), ['date', 'label', 'open', 'reason', 'available'])
-  assert.deepEqual(shopDays.body.days.find(d => d.date === WED), { date: WED, label: 'Wed Sep 16', open: true, reason: null, available: 18 })
-  assert.equal(shopDays.body.days.find(d => d.date === '2026-09-20').reason, 'Closed Sundays')
+  assert.deepEqual(
+    shopDays.body.days.find((d) => d.date === WED),
+    { date: WED, label: 'Wed Sep 16', open: true, reason: null, available: 18 },
+  )
+  assert.equal(shopDays.body.days.find((d) => d.date === '2026-09-20').reason, 'Closed Sundays')
 
   const customerDays = await api('GET', `/api/r/${a.token}/days`)
   assert.equal(customerDays.status, 200, customerDays.text)
@@ -948,11 +1324,16 @@ test('move pickers use the request snapshot: an offline service can still be mov
   assert.deepEqual(customerSlots.body.slots[0], { time: '08:00', label: '8:00 AM' })
   const shopSlots = await api('GET', `/api/shop/slots?date=${WED}&exclude=${a.id}`, { token })
   assert.deepEqual(shopSlots.body, customerSlots.body, '/api/shop/slots with exclude and no service gives the same times')
-  assert.equal((await api('POST', `/api/r/${a.token}/repick`, { body: { date: WED, time: '10:00' } })).status, 200, 'and the move itself goes through')
+  assert.equal(
+    (await api('POST', `/api/r/${a.token}/repick`, { body: { date: WED, time: '10:00' } })).status,
+    200,
+    'and the move itself goes through',
+  )
 
   // Refusals on the new routes.
   const bookingMiss = { error: 'We could not find that booking. Please check the link the shop sent you.', code: 'not_found' }
-  for (const path of ['/api/r/nope/days', `/api/r/nope/slots?date=${WED}`]) assert.deepEqual((await api('GET', path)).body, bookingMiss, path)
+  for (const path of ['/api/r/nope/days', `/api/r/nope/slots?date=${WED}`])
+    assert.deepEqual((await api('GET', path)).body, bookingMiss, path)
   const outside = await api('GET', `/api/r/${a.token}/slots?date=2026-10-30`)
   expectError(outside, 400, 'bad_request')
   assert.equal(outside.body.field, 'date')
@@ -966,15 +1347,25 @@ test("a time blocked only by the request's own hold is offered to that request",
   // API.md clarification 19. Bays 2 and 3 are blocked at 9:30 and the request holds bay 1, so 9:30 is full for everyone else.
   await reset()
   const token = await signin()
-  assert.equal((await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '09:30', end: '10:00', bays: [2, 3] } })).status, 201)
+  assert.equal(
+    (await api('POST', '/api/shop/blocks', { token, body: { date: TUE, time: '09:30', end: '10:00', bays: [2, 3] } })).status,
+    201,
+  )
   const a = await create('oil', TUE, '09:30')
   assert.ok(!(await slotTimes('oil', TUE)).includes('09:30'), '/api/slots does not offer 9:30')
   const own = await api('GET', `/api/r/${a.token}/slots?date=${TUE}`)
-  assert.ok(own.body.slots.some(x => x.time === '09:30'), '/api/r/:token/slots offers 9:30 back to its own booking')
-  const everyone = (await api('GET', '/api/days?service=oil')).body.days.find(d => d.date === TUE).available
-  const mine = (await api('GET', `/api/r/${a.token}/days`)).body.days.find(d => d.date === TUE).available
+  assert.ok(
+    own.body.slots.some((x) => x.time === '09:30'),
+    '/api/r/:token/slots offers 9:30 back to its own booking',
+  )
+  const everyone = (await api('GET', '/api/days?service=oil')).body.days.find((d) => d.date === TUE).available
+  const mine = (await api('GET', `/api/r/${a.token}/days`)).body.days.find((d) => d.date === TUE).available
   assert.equal(mine, everyone + 1, 'the day count also frees exactly the own start')
-  assert.equal((await api('POST', `/api/r/${a.token}/repick`, { body: { date: TUE, time: '09:30' } })).status, 200, 'control: repick agrees the time is free')
+  assert.equal(
+    (await api('POST', `/api/r/${a.token}/repick`, { body: { date: TUE, time: '09:30' } })).status,
+    200,
+    'control: repick agrees the time is free',
+  )
 })
 
 test('PIN change refusals: a wrong current PIN carries field current; a dead session has none', async () => {

@@ -12,7 +12,7 @@ const ok = runUnitControls('negative:shopboard', [
     find: "['12:30 PM', 750]",
     replace: "['12:30 PM', 766 /* NEGATIVE CONTROL (d) */]",
     testFile: 'tests/shopboard.test.mjs',
-    test: 'the mapping table'
+    test: 'the mapping table',
   },
   {
     name: 'e-fake-slot',
@@ -21,7 +21,7 @@ const ok = runUnitControls('negative:shopboard', [
     find: "if (field === 'slot' && !isSlot(value))",
     replace: "if (field === 'slot' && false /* NEGATIVE CONTROL (e) */)",
     testFile: 'tests/shopboard.test.mjs',
-    test: 'contract: the fake refuses what Shop Board refuses'
-  }
+    test: 'contract: the fake refuses what Shop Board refuses',
+  },
 ])
 process.exit(ok ? 0 : 1)

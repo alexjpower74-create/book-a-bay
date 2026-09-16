@@ -16,47 +16,71 @@ const FAKE_PORT = Number(process.env.FAKE_SHOP_BOARD_PORT || 7304)
 const FAKE = `http://127.0.0.1:${FAKE_PORT}`
 const env = { ...process.env, WRANGLER_SEND_METRICS: 'false', CI: '1' }
 
-const step = (cmd, args, extraEnv = {}) =>
-  spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env: { ...env, ...extraEnv } }).status ?? 1
+const step = (cmd, args, extraEnv = {}) => spawnSync(cmd, args, { cwd: root, stdio: 'inherit', env: { ...env, ...extraEnv } }).status ?? 1
 
-async function answers (url) {
+async function answers(url) {
   try {
     return (await fetch(url, { signal: AbortSignal.timeout(1500) })).ok
-  } catch { return false }
+  } catch {
+    return false
+  }
 }
 
-async function waitFor (url, isGone) {
+async function waitFor(url, isGone) {
   for (let i = 0; i < 120 && !isGone(); i++) {
     if (await answers(url)) return true
-    await new Promise(r => setTimeout(r, 500))
+    await new Promise((r) => setTimeout(r, 500))
   }
   return false
 }
 
-function stopper (child, state) {
+function stopper(child, state) {
   return async () => {
     if (state.exited) return
-    const gone = new Promise(r => child.once('exit', r))
-    try { process.kill(-child.pid, 'SIGTERM') } catch {}
-    await Promise.race([gone, new Promise(r => setTimeout(r, 5000))])
-    if (!state.exited) try { process.kill(-child.pid, 'SIGKILL') } catch {}
+    const gone = new Promise((r) => child.once('exit', r))
+    try {
+      process.kill(-child.pid, 'SIGTERM')
+    } catch {}
+    await Promise.race([gone, new Promise((r) => setTimeout(r, 5000))])
+    if (!state.exited)
+      try {
+        process.kill(-child.pid, 'SIGKILL')
+      } catch {}
   }
 }
 
-export async function startWorker ({ dir = root, port, log, vars = {} }) {
+export async function startWorker({ dir = root, port, log, vars = {} }) {
   const state = join(dir, `.state-${port}`)
   rmSync(state, { recursive: true, force: true })
-  const migrate = spawnSync('wrangler', ['d1', 'migrations', 'apply', 'book-a-bay', '--local', '--persist-to', state],
-    { cwd: dir, env, encoding: 'utf8' })
+  const migrate = spawnSync('wrangler', ['d1', 'migrations', 'apply', 'book-a-bay', '--local', '--persist-to', state], {
+    cwd: dir,
+    env,
+    encoding: 'utf8',
+  })
   if (migrate.status !== 0) throw new Error(`migrations failed:\n${migrate.stdout}\n${migrate.stderr}`)
   mkdirSync(dirname(log), { recursive: true })
   const out = openSync(log, 'w')
   const varArgs = Object.entries({ TEST_MODE: '1', ...vars }).flatMap(([k, v]) => ['--var', `${k}:${v}`])
-  const child = spawn('wrangler', ['dev', '--local', '--port', String(port), '--inspector-port', String(port + 10),
-    '--persist-to', state, ...varArgs, '--show-interactive-dev-session=false'],
-  { cwd: dir, env, detached: true, stdio: ['ignore', out, out] })
+  const child = spawn(
+    'wrangler',
+    [
+      'dev',
+      '--local',
+      '--port',
+      String(port),
+      '--inspector-port',
+      String(port + 10),
+      '--persist-to',
+      state,
+      ...varArgs,
+      '--show-interactive-dev-session=false',
+    ],
+    { cwd: dir, env, detached: true, stdio: ['ignore', out, out] },
+  )
   const s = { exited: false }
-  child.on('exit', () => { s.exited = true })
+  child.on('exit', () => {
+    s.exited = true
+  })
   const base = `http://127.0.0.1:${port}`
   const up = await waitFor(`${base}/api/shop`, () => s.exited)
   if (!up) {
@@ -66,18 +90,24 @@ export async function startWorker ({ dir = root, port, log, vars = {} }) {
   return { base, stop: stopper(child, s) }
 }
 
-export async function startFake ({ port, log }) {
+export async function startFake({ port, log }) {
   mkdirSync(dirname(log), { recursive: true })
   const out = openSync(log, 'w')
-  const child = spawn(process.execPath, [join(root, 'tests', 'fake-shop-board.mjs')],
-    { cwd: root, env: { ...env, PORT: String(port) }, detached: true, stdio: ['ignore', out, out] })
+  const child = spawn(process.execPath, [join(root, 'tests', 'fake-shop-board.mjs')], {
+    cwd: root,
+    env: { ...env, PORT: String(port) },
+    detached: true,
+    stdio: ['ignore', out, out],
+  })
   const s = { exited: false }
-  child.on('exit', () => { s.exited = true })
+  child.on('exit', () => {
+    s.exited = true
+  })
   if (!(await waitFor(`http://127.0.0.1:${port}/__health`, () => s.exited))) throw new Error(`fake Shop Board did not start on ${port}`)
   return { stop: stopper(child, s) }
 }
 
-async function main () {
+async function main() {
   console.log('\n== unit: tests/slots.test.mjs tests/shopboard.test.mjs ==')
   if (step(process.execPath, ['--test', '--test-concurrency=1', 'tests/slots.test.mjs', 'tests/shopboard.test.mjs']) !== 0) process.exit(1)
 

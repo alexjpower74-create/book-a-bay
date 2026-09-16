@@ -5,7 +5,12 @@ import { esc, duration, band, dayChips, timeButtons, showShop, copyText, icon } 
 
 const root = document.getElementById('booking')
 const progress = document.getElementById('progress')
-const STEPS = [['service', 'Service'], ['day', 'Day'], ['time', 'Time'], ['details', 'Details']]
+const STEPS = [
+  ['service', 'Service'],
+  ['day', 'Day'],
+  ['time', 'Time'],
+  ['details', 'Details'],
+]
 const FIELDS = ['name', 'phone', 'year', 'make', 'model', 'note']
 
 // Same limits as POST /api/requests, worded for the customer.
@@ -24,10 +29,23 @@ const RULES = {
 }
 
 const s = {
-  shop: null, step: 'service', loading: false, error: '',
-  service: null, days: null, date: null, dayLabel: '', slots: null, time: null, when: '',
-  form: Object.fromEntries(FIELDS.map((f) => [f, ''])), touched: new Set(),
-  taken: null, sendError: '', sending: false, sent: null,
+  shop: null,
+  step: 'service',
+  loading: false,
+  error: '',
+  service: null,
+  days: null,
+  date: null,
+  dayLabel: '',
+  slots: null,
+  time: null,
+  when: '',
+  form: Object.fromEntries(FIELDS.map((f) => [f, ''])),
+  touched: new Set(),
+  taken: null,
+  sendError: '',
+  sending: false,
+  sent: null,
 }
 let seq = 0
 let focusPending = false
@@ -37,7 +55,15 @@ let focusPending = false
 function render() {
   renderProgress()
   root.innerHTML =
-    s.step === 'service' ? serviceStep() : s.step === 'day' ? dayStep() : s.step === 'time' ? timeStep() : s.step === 'details' ? detailsStep() : sentStep()
+    s.step === 'service'
+      ? serviceStep()
+      : s.step === 'day'
+        ? dayStep()
+        : s.step === 'time'
+          ? timeStep()
+          : s.step === 'details'
+            ? detailsStep()
+            : sentStep()
   if (s.step === 'details') fillForm()
   if (focusPending && !s.loading) {
     focusPending = false
@@ -60,7 +86,8 @@ const head = (title, sub) => `<h3 tabindex="-1">${title}</h3>${sub ? `<p class="
 
 function waiting() {
   if (s.loading) return `<p class="loading" role="status">Loading…</p>`
-  if (s.error) return `<div class="alert" role="alert"><p>${esc(s.error)}</p><button type="button" class="btn" data-retry>Try again</button></div>`
+  if (s.error)
+    return `<div class="alert" role="alert"><p>${esc(s.error)}</p><button type="button" class="btn" data-retry>Try again</button></div>`
   return ''
 }
 
@@ -72,7 +99,9 @@ function serviceStep() {
     head('Pick a service', 'Choose what you need done. Times are about how long the job takes.') +
     `<div class="services">${s.shop.services
       .map(
-        (sv) => `<button type="button" class="service" data-service="${esc(sv.id)}" data-band="${band(sv.minutes)}" aria-pressed="${s.service?.id === sv.id}">
+        (
+          sv,
+        ) => `<button type="button" class="service" data-service="${esc(sv.id)}" data-band="${band(sv.minutes)}" aria-pressed="${s.service?.id === sv.id}">
           <span class="txt"><b>${esc(sv.name)}</b><span class="dur">${duration(sv.minutes)}</span></span><span class="go">${icon.chevron}</span></button>`,
       )
       .join('')}</div>`
@@ -106,7 +135,12 @@ function summary() {
 function takenBlock() {
   if (!s.taken) return ''
   const n = s.taken.next.length
-  const lead = ['There are no other times open for this service right now.', 'Here is the next one:', 'Here are the next two:', 'Here are the next three:'][n]
+  const lead = [
+    'There are no other times open for this service right now.',
+    'Here is the next one:',
+    'Here are the next two:',
+    'Here are the next three:',
+  ][n]
   return `<div class="taken" id="taken" role="alert" tabindex="-1"><p>${esc(s.taken.message)} ${lead}</p>${
     n
       ? `<div class="alts">${s.taken.next.map((x, i) => `<button type="button" class="btn alt" data-alt="${i}">${esc(x.label)}</button>`).join('')}</div>`
@@ -264,8 +298,16 @@ function go(step) {
   s.step = step
   s.error = ''
   focusPending = true
-  if (step === 'day') return load(() => api.days(s.service.id), (r) => (s.days = r))
-  if (step === 'time') return load(() => api.slots(s.service.id, s.date), (r) => (s.slots = r))
+  if (step === 'day')
+    return load(
+      () => api.days(s.service.id),
+      (r) => (s.days = r),
+    )
+  if (step === 'time')
+    return load(
+      () => api.slots(s.service.id, s.date),
+      (r) => (s.slots = r),
+    )
   render()
 }
 
@@ -324,7 +366,15 @@ root.addEventListener('click', async (e) => {
   }
   if (d.alt !== undefined) {
     const x = s.taken.next[Number(d.alt)]
-    Object.assign(s, { date: x.date, time: x.time, when: x.label, dayLabel: x.label.split(',')[0], slots: null, taken: null, sendError: '' })
+    Object.assign(s, {
+      date: x.date,
+      time: x.time,
+      when: x.label,
+      dayLabel: x.label.split(',')[0],
+      slots: null,
+      taken: null,
+      sendError: '',
+    })
     render()
     return document.getElementById('send')?.focus()
   }
@@ -336,7 +386,9 @@ root.addEventListener('click', async (e) => {
     if (ok) {
       b.textContent = 'Copied'
       note.textContent = 'The link is copied. Paste it somewhere safe, like a note or a text to yourself.'
-      setTimeout(() => { if (b.isConnected) b.textContent = 'Copy link' }, 2500)
+      setTimeout(() => {
+        if (b.isConnected) b.textContent = 'Copy link'
+      }, 2500)
     } else {
       document.getElementById('status-link').select()
       note.textContent = 'Select the link above and copy it.'

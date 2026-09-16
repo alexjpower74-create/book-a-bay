@@ -10,7 +10,7 @@ const ok = runUnitControls('negative:slots', [
     find: 'const closure = (settings.closures || []).find(c => c.date === date)',
     replace: 'const closure = undefined /* NEGATIVE CONTROL (a): closures ignored */',
     testFile: 'tests/slots.test.mjs',
-    test: 'a closure date is closed with its reason'
+    test: 'a closure date is closed with its reason',
   },
   {
     name: 'b-bays',
@@ -19,7 +19,7 @@ const ok = runUnitControls('negative:slots', [
     find: 'for (let bay = 1; bay <= bayCount; bay++)',
     replace: 'for (let bay = 1; bay <= 10 /* NEGATIVE CONTROL (b): bay count ignored */; bay++)',
     testFile: 'tests/slots.test.mjs',
-    test: 'the bay-count change'
-  }
+    test: 'the bay-count change',
+  },
 ])
 process.exit(ok ? 0 : 1)

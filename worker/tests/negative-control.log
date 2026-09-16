@@ -998,3 +998,73 @@ test at tests/api.test.mjs:980:1
     diff: 'simple'
   }
 verdict: RED as expected. "PIN change refusals: a wrong current PIN carries field current" fails when the wrong-current-PIN 401 no longer carries field: current.
+
+=== negative:race 2026-09-16T03:05:02.496Z (HEAD e7fa047, working tree) ===
+break: RACE-GUARD region -> unguarded SELECT check, await scheduler.wait(25), INSERTs one by one; UNIQUE indexes cells_unique and starts_unique dropped
+started the broken copy on http://127.0.0.1:7305
+RACE winners=8 losers=0 statuses=201,201,201,201,201,201,201,201
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (437.077486ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 527.387717
+
+✖ failing tests:
+
+test at tests/api.test.mjs:274:1
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (437.077486ms)
+  AssertionError [ERR_ASSERTION]: exactly one 201, got 8
+  
+  8 !== 1
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/race/tests/api.test.mjs:288:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. Without the batch + UNIQUE guard 8 customers all got a 201 for the one free place. The race test measures the guard.
+
+=== negative:race 2026-09-16T03:13:52.046Z (HEAD e7fa047, working tree) ===
+break: RACE-GUARD region -> unguarded SELECT check, await scheduler.wait(25), INSERTs one by one; UNIQUE indexes cells_unique and starts_unique dropped
+started the broken copy on http://127.0.0.1:7305
+RACE winners=8 losers=0 statuses=201,201,201,201,201,201,201,201
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (659.966618ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 786.046341
+
+✖ failing tests:
+
+test at tests/api.test.mjs:378:1
+✖ the race: 8 customers send for the last free place at one time, exactly one wins (659.966618ms)
+  AssertionError [ERR_ASSERTION]: exactly one 201, got 8
+  
+  8 !== 1
+  
+      at TestContext.<anonymous> (file://<repo>/worker/.negative/race/tests/api.test.mjs:393:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+verdict: RED as expected. Without the batch + UNIQUE guard 8 customers all got a 201 for the one free place. The race test measures the guard.

@@ -14,13 +14,30 @@ async function pickDay(page, scope, day) {
   await expect(scope.locator('.picker button.day[aria-pressed="true"]')).toContainText(day)
 }
 
-test('own hold stays pickable, and after Oil change goes offline the shop can offer and the customer can pick another time', async ({ page, browser, request }, testInfo) => {
+test('own hold stays pickable, and after Oil change goes offline the shop can offer and the customer can pick another time', async ({
+  page,
+  browser,
+  request,
+}, testInfo) => {
   const token = await shopToken(request)
   const auth = { Authorization: `Bearer ${token}` }
   const settings = (await api(request, 'GET', '/api/shop/settings', null, auth)).body
-  const put = await api(request, 'PUT', '/api/shop/settings', { ...settings, bays: 1, max_per_slot: 1, services: settings.services.map((s) => ({ ...s, bays_needed: 1 })) }, auth)
+  const put = await api(
+    request,
+    'PUT',
+    '/api/shop/settings',
+    { ...settings, bays: 1, max_per_slot: 1, services: settings.services.map((s) => ({ ...s, bays_needed: 1 })) },
+    auth,
+  )
   expect(put.status, JSON.stringify(put.body)).toBe(200)
-  const made = await api(request, 'POST', '/api/requests', { service: 'oil', date: '2026-09-15', time: '10:00', name: 'Pat Sample (sample)', phone: '709-555-0142', make: 'Toyota' })
+  const made = await api(request, 'POST', '/api/requests', {
+    service: 'oil',
+    date: '2026-09-15',
+    time: '10:00',
+    name: 'Pat Sample (sample)',
+    phone: '709-555-0142',
+    make: 'Toyota',
+  })
   expect(made.status, JSON.stringify(made.body)).toBe(201)
 
   const shopContext = await newContext(browser, testInfo)
@@ -31,7 +48,7 @@ test('own hold stays pickable, and after Oil change goes offline the shop can of
   // Shop: the request's own Tue 10:00 is offered on its own day; then offer Wed 2:00 PM.
   await tap(shop, card.getByRole('button', { name: 'Offer another time' }), 'Offer another time')
   await pickDay(shop, card, 'Sep 15')
-  await expect(card.locator('.picker button.time[data-time="10:00"]'), 'the shop sees the booking\'s own time').toBeVisible()
+  await expect(card.locator('.picker button.time[data-time="10:00"]'), "the shop sees the booking's own time").toBeVisible()
   await pickDay(shop, card, 'Sep 16')
   await tap(shop, card.locator('.picker button.time[data-time="14:00"]'), '2:00 PM')
   await tap(shop, card.getByRole('button', { name: 'Offer Wed Sep 16, 2:00 PM' }), 'Offer Wed Sep 16, 2:00 PM')
@@ -48,7 +65,10 @@ test('own hold stays pickable, and after Oil change goes offline the shop can of
 
   // The shop takes Oil change offline.
   await tap(shop, shop.getByRole('tab', { name: 'Settings' }), 'Settings')
-  const oilOnline = shop.locator('.service-row').filter({ has: shop.locator('input[value="Oil change"]') }).locator('input[data-s="svc-active"]')
+  const oilOnline = shop
+    .locator('.service-row')
+    .filter({ has: shop.locator('input[value="Oil change"]') })
+    .locator('input[data-s="svc-active"]')
   await expect(oilOnline).toBeChecked()
   await tap(shop, oilOnline, 'Oil change: Bookable online')
   await expect(oilOnline).not.toBeChecked()

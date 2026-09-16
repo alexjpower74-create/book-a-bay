@@ -12,29 +12,54 @@ async function badge(page) {
 }
 
 // Height, enabled, hit-test at the centre, and contrast of the text against each colour in its background.
-async function primaryOk(page, locator, label, testInfo) {
+async function primaryOk(_page, locator, label, testInfo) {
   await expect(locator, label).toBeVisible()
   await expect(locator, `${label} is enabled`).toBeEnabled()
   await locator.scrollIntoViewIfNeeded()
   const box = await locator.boundingBox()
   if (testInfo.project.name.endsWith('390')) expect(box.height, `${label} height at 390`).toBeGreaterThanOrEqual(44)
-  const facts = await locator.evaluate((el, [x, y]) => {
-    const t = document.elementFromPoint(x, y)
-    const cs = getComputedStyle(el)
-    return { hits: t === el || el.contains(t), color: cs.color, background: `${cs.backgroundImage} ${cs.backgroundColor}`, opacity: cs.opacity }
-  }, [box.x + box.width / 2, box.y + box.height / 2])
+  const facts = await locator.evaluate(
+    (el, [x, y]) => {
+      const t = document.elementFromPoint(x, y)
+      const cs = getComputedStyle(el)
+      return {
+        hits: t === el || el.contains(t),
+        color: cs.color,
+        background: `${cs.backgroundImage} ${cs.backgroundColor}`,
+        opacity: cs.opacity,
+      }
+    },
+    [box.x + box.width / 2, box.y + box.height / 2],
+  )
   expect(facts.hits, `${label} hit-tests to itself`).toBe(true)
   expect(facts.opacity, `${label} is not faded`).toBe('1')
-  const rgb = (s) => [...s.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/g)].filter((m) => m[4] === undefined || Number(m[4]) > 0.5).map((m) => [1, 2, 3].map((i) => Number(m[i])))
-  const lum = ([r, g, b]) => [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }).reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0)
+  const rgb = (s) =>
+    [...s.matchAll(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/g)]
+      .filter((m) => m[4] === undefined || Number(m[4]) > 0.5)
+      .map((m) => [1, 2, 3].map((i) => Number(m[i])))
+  const lum = ([r, g, b]) =>
+    [r, g, b]
+      .map((v) => {
+        v /= 255
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+      })
+      .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0)
   const text = lum(rgb(facts.color)[0])
   const stops = rgb(facts.background)
   expect(stops.length, `${label} has a solid background colour to measure`).toBeGreaterThan(0)
-  const worst = Math.min(...stops.map((c) => { const [hi, lo] = [text, lum(c)].sort((a, b) => b - a); return (hi + 0.05) / (lo + 0.05) }))
+  const worst = Math.min(
+    ...stops.map((c) => {
+      const [hi, lo] = [text, lum(c)].sort((a, b) => b - a)
+      return (hi + 0.05) / (lo + 0.05)
+    }),
+  )
   expect(worst, `${label} text contrast (worst gradient stop)`).toBeGreaterThanOrEqual(4.5)
 }
 
-test('Sunday is closed; the SAMPLE badge is on all three screens; primary buttons are big, enabled, legible and hit-test to themselves', async ({ page, request }, testInfo) => {
+test('Sunday is closed; the SAMPLE badge is on all three screens; primary buttons are big, enabled, legible and hit-test to themselves', async ({
+  page,
+  request,
+}, testInfo) => {
   // Customer page
   await page.goto('/')
   await badge(page)
@@ -54,7 +79,14 @@ test('Sunday is closed; the SAMPLE badge is on all three screens; primary button
   await shot(page, testInfo, 'book-4-details-errors')
 
   // Status page
-  const made = await api(request, 'POST', '/api/requests', { service: 'oil', date: '2026-09-15', time: '11:00', name: 'Pat Sample (sample)', phone: '709-555-0142', make: 'Toyota' })
+  const made = await api(request, 'POST', '/api/requests', {
+    service: 'oil',
+    date: '2026-09-15',
+    time: '11:00',
+    name: 'Pat Sample (sample)',
+    phone: '709-555-0142',
+    make: 'Toyota',
+  })
   expect(made.status).toBe(201)
   await page.goto(made.body.status_url)
   await expect(page.locator('#status-pill')).toHaveText('Requested')
@@ -86,18 +118,21 @@ test('after an empty Send, the name field is in view below the header (no test s
   await expect
     .poll(
       () =>
-        page.locator('#f-name').evaluate((el) => {
-          const r = el.getBoundingClientRect()
-          const x = r.left + r.width / 2
-          const y = r.top + r.height / 2
-          const headerBottom = document.querySelector('.bar').getBoundingClientRect().bottom
-          return {
-            hitsItself: document.elementFromPoint(x, y) === el,
-            belowHeader: y > headerBottom,
-            aboveScreenBottom: y < window.innerHeight,
-            at: `centre y ${Math.round(y)}, header bottom ${Math.round(headerBottom)}, screen ${window.innerHeight}`,
-          }
-        }).then(({ at, ...facts }) => ({ ...facts, at: facts.hitsItself && facts.belowHeader && facts.aboveScreenBottom ? 'ok' : at })),
+        page
+          .locator('#f-name')
+          .evaluate((el) => {
+            const r = el.getBoundingClientRect()
+            const x = r.left + r.width / 2
+            const y = r.top + r.height / 2
+            const headerBottom = document.querySelector('.bar').getBoundingClientRect().bottom
+            return {
+              hitsItself: document.elementFromPoint(x, y) === el,
+              belowHeader: y > headerBottom,
+              aboveScreenBottom: y < window.innerHeight,
+              at: `centre y ${Math.round(y)}, header bottom ${Math.round(headerBottom)}, screen ${window.innerHeight}`,
+            }
+          })
+          .then(({ at, ...facts }) => ({ ...facts, at: facts.hitsItself && facts.belowHeader && facts.aboveScreenBottom ? 'ok' : at })),
       { message: 'the first invalid field is where a person can see and tap it', timeout: 3000 },
     )
     .toEqual({ hitsItself: true, belowHeader: true, aboveScreenBottom: true, at: 'ok' })

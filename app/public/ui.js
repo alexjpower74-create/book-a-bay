@@ -38,7 +38,15 @@ export function instantLabel(iso, timeZone = 'America/St_Johns') {
   const ms = Date.parse(iso)
   if (Number.isNaN(ms)) return ''
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
       .formatToParts(ms)
       .map((p) => [p.type, p.value]),
   )
@@ -79,7 +87,13 @@ export function dayChips(days, today, selected, { shop = false } = {}) {
       const [wd, ...rest] = d.label.split(' ')
       const kind = !d.open ? 'closed' : shop || d.available > 0 ? 'open' : 'full'
       const note =
-        kind === 'closed' ? d.reason || 'Closed' : kind === 'full' ? 'Full' : shop ? 'Open' : `${d.available} ${d.available === 1 ? 'time' : 'times'}`
+        kind === 'closed'
+          ? d.reason || 'Closed'
+          : kind === 'full'
+            ? 'Full'
+            : shop
+              ? 'Open'
+              : `${d.available} ${d.available === 1 ? 'time' : 'times'}`
       return `<button type="button" class="day" data-date="${esc(d.date)}" data-kind="${kind}" aria-pressed="${d.date === selected}"${kind === 'open' ? '' : ' disabled'}>
         <span class="wd">${d.date === today ? 'Today' : esc(wd)}</span><span class="dm">${esc(rest.join(' '))}</span><span class="av">${esc(note)}</span></button>`
     })
@@ -88,7 +102,9 @@ export function dayChips(days, today, selected, { shop = false } = {}) {
 
 export function timeButtons(slots, selected) {
   return slots
-    .map((t) => `<button type="button" class="time" data-time="${esc(t.time)}" aria-pressed="${t.time === selected}">${esc(t.label)}</button>`)
+    .map(
+      (t) => `<button type="button" class="time" data-time="${esc(t.time)}" aria-pressed="${t.time === selected}">${esc(t.label)}</button>`,
+    )
     .join('')
 }
 
@@ -111,7 +127,9 @@ export async function copyText(text) {
     document.body.append(ta)
     ta.select()
     let ok = false
-    try { ok = document.execCommand('copy') } catch {}
+    try {
+      ok = document.execCommand('copy')
+    } catch {}
     ta.remove()
     return ok
   }

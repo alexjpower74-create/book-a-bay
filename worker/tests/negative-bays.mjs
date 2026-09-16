@@ -30,7 +30,7 @@ const TEST = 'lowering bays while bookings are in flight'
 
 const log = createLog('negative:bays')
 
-async function runCopy (name, { removeGuard }) {
+async function runCopy(name, { removeGuard }) {
   const copy = copyWorker(name)
   if (removeGuard) {
     patchFile(copy, 'src/index.js', FIND, BREAK, 'BAY_GUARD_SQL')
@@ -39,13 +39,23 @@ async function runCopy (name, { removeGuard }) {
     log.say(`[${name}] guard kept`)
   }
   if (WAIT_MS > 0) {
-    patchFile(copy, 'src/index.js', '    let committed = false\n',
-      `    let committed = false\n    await scheduler.wait(${WAIT_MS}) /* NEGATIVE CONTROL: latency between read and batch */\n`, 'latency before the booking batch')
+    patchFile(
+      copy,
+      'src/index.js',
+      '    let committed = false\n',
+      `    let committed = false\n    await scheduler.wait(${WAIT_MS}) /* NEGATIVE CONTROL: latency between read and batch */\n`,
+      'latency before the booking batch',
+    )
     log.say(`[${name}] extra: await scheduler.wait(${WAIT_MS}) between the booking's read and its batch (this copy only)`)
   }
   const worker = await startWorker({ dir: copy, port: PORT, log: join(copy, '.logs', `wrangler-${PORT}.log`) })
   try {
-    const run = runNode(copy, ['--test', '--test-name-pattern', `^${TEST}`, 'tests/api.test.mjs'], { BASE: worker.base, BAYS_RACE_RUNS: String(RUNS), BAYS_RACE_STAGGER_STEP_MS: String(STEP_MS), BAYS_RACE_STAGGER_OFFSET: String(OFFSET) })
+    const run = runNode(copy, ['--test', '--test-name-pattern', `^${TEST}`, 'tests/api.test.mjs'], {
+      BASE: worker.base,
+      BAYS_RACE_RUNS: String(RUNS),
+      BAYS_RACE_STAGGER_STEP_MS: String(STEP_MS),
+      BAYS_RACE_STAGGER_OFFSET: String(OFFSET),
+    })
     log.say(run.output.trimEnd())
     const outcomes = ((/BAYS-RACE outcomes=(\S+)/.exec(run.output) || [])[1] || '').split(',').filter(Boolean)
     return { status: run.status, output: run.output, outcomes }
@@ -56,20 +66,26 @@ async function runCopy (name, { removeGuard }) {
 
 let verdictOk = false
 try {
-  log.say(`runs: ${RUNS} per copy, send stagger (run - ${OFFSET}) * ${STEP_MS} ms (bookings ${OFFSET * STEP_MS} ms ahead down to ${(OFFSET - RUNS + 1) * STEP_MS} ms ahead), added latency ${WAIT_MS} ms`)
+  log.say(
+    `runs: ${RUNS} per copy, send stagger (run - ${OFFSET}) * ${STEP_MS} ms (bookings ${OFFSET * STEP_MS} ms ahead down to ${(OFFSET - RUNS + 1) * STEP_MS} ms ahead), added latency ${WAIT_MS} ms`,
+  )
   const control = await runCopy('bays-control', { removeGuard: false })
   const controlOk = control.status === 0 && control.output.includes(`✔ ${TEST}`) && control.outcomes.length === RUNS
-  log.say(controlOk
-    ? `control: PASSES with the same latency and the guard kept (${control.outcomes.filter(o => o.startsWith('save409')).length} booking-first, ${control.outcomes.filter(o => o.startsWith('save200')).length} save-first runs).`
-    : `control: DID NOT PASS (exit ${control.status}); the added latency alone breaks the test, so a red below would prove nothing.`)
+  log.say(
+    controlOk
+      ? `control: PASSES with the same latency and the guard kept (${control.outcomes.filter((o) => o.startsWith('save409')).length} booking-first, ${control.outcomes.filter((o) => o.startsWith('save200')).length} save-first runs).`
+      : `control: DID NOT PASS (exit ${control.status}); the added latency alone breaks the test, so a red below would prove nothing.`,
+  )
 
   const broken = await runCopy('bays', { removeGuard: true })
-  const doubled = broken.outcomes.filter(o => /bays2:\d+w:bay3/.test(o)).length
+  const doubled = broken.outcomes.filter((o) => /bays2:\d+w:bay3/.test(o)).length
   const brokenRed = broken.status !== 0 && broken.output.includes(`✖ ${TEST}`) && doubled > 0
   verdictOk = controlOk && brokenRed
-  log.say(verdictOk
-    ? `verdict: RED as expected. With the same latency, the guarded copy passed and the unguarded copy let ${doubled} of ${RUNS} runs save bays=2 while a booking held bay 3.`
-    : `verdict: NOT RED as required (control ${controlOk ? 'passed' : 'failed'}, broken exit ${broken.status}, doubled runs ${doubled}).`)
+  log.say(
+    verdictOk
+      ? `verdict: RED as expected. With the same latency, the guarded copy passed and the unguarded copy let ${doubled} of ${RUNS} runs save bays=2 while a booking held bay 3.`
+      : `verdict: NOT RED as required (control ${controlOk ? 'passed' : 'failed'}, broken exit ${broken.status}, doubled runs ${doubled}).`,
+  )
 } catch (e) {
   log.say(`verdict: ERROR ${e.stack || e.message}`)
 } finally {

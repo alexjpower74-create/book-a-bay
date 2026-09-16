@@ -7,6 +7,12 @@
     "demo": "node demo.mjs",
     "test:worker": "cd worker && npm test",
     "test:race-control": "cd worker && npm run negative:race",
-    "test:e2e": "cd app && npx playwright test"
+    "test:e2e": "cd app && npx playwright test",
+    "dev": "echo \"worker: cd worker && npm run dev  |  app: cd app && npm run serve\"",
+    "test": "npm run test:worker && npm run test:race-control && npm run test:e2e",
+    "check": "biome ci . && npm test && check-no-personal-data --quiet ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13"
   }
 }

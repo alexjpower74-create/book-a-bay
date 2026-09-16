@@ -29,7 +29,10 @@ export default defineConfig({
     env: { E2E_PORT: String(PORT) },
   },
   projects: [
-    { name: 'chromium-390', use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true } },
+    {
+      name: 'chromium-390',
+      use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true },
+    },
     { name: 'chromium-1280', use: { browserName: 'chromium', viewport: { width: 1280, height: 800 } } },
     { name: 'webkit-390', use: { ...devices['iPhone 14'], browserName: 'webkit' } },
     { name: 'webkit-1280', use: { browserName: 'webkit', viewport: { width: 1280, height: 800 } } },

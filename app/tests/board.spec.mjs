@@ -72,12 +72,17 @@ test('Download for Shop Board saves the JSON patches and the CSV', async ({ page
   expect(lines.length - 1).toBe(data.items.length)
 })
 
-test('with the seeded week the Today board is within two screens, the header is one row, time labels one line', async ({ page, request }) => {
+test('with the seeded week the Today board is within two screens, the header is one row, time labels one line', async ({
+  page,
+  request,
+}) => {
   expect((await api(request, 'POST', '/api/test/seed', {})).status).toBe(200)
   await signInThroughPage(page)
   await expect(page.locator('.pending article.req')).toHaveCount(4)
 
-  const { top, screen } = await page.locator('.baycol.is-shown').evaluate((el) => ({ top: el.getBoundingClientRect().top + window.scrollY, screen: window.innerHeight }))
+  const { top, screen } = await page
+    .locator('.baycol.is-shown')
+    .evaluate((el) => ({ top: el.getBoundingClientRect().top + window.scrollY, screen: window.innerHeight }))
   expect(top, `first bay column starts at ${Math.round(top)} px; two screens are ${2 * screen} px`).toBeLessThanOrEqual(2 * screen)
 
   for (const toggle of await page.locator('.pending .texts-toggle').all()) {
@@ -90,11 +95,13 @@ test('with the seeded week the Today board is within two screens, the header is 
   expect((await page.locator('.shop-bar').boundingBox()).height, 'header is one row').toBeLessThan(80)
 
   const lines = await page.locator('.tlabel').evaluateAll((els) =>
-    els.filter((el) => el.textContent.trim()).map((el) => {
-      const range = document.createRange()
-      range.selectNodeContents(el)
-      return { text: el.textContent.trim(), lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size }
-    }),
+    els
+      .filter((el) => el.textContent.trim())
+      .map((el) => {
+        const range = document.createRange()
+        range.selectNodeContents(el)
+        return { text: el.textContent.trim(), lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size }
+      }),
   )
   expect(lines.length).toBeGreaterThan(0)
   for (const l of lines) expect(l.lines, `time label "${l.text}" is on one line`).toBe(1)

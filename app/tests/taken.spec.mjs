@@ -23,7 +23,13 @@ test('the second customer to send sees "just taken" and three alternatives', asy
   // One bay, one booking per start, Tuesdays 8:00 to 8:30: Tue Sep 15 has exactly one oil change slot.
   // A one-bay shop cannot keep a two-bay service, so the truck service drops to one bay here.
   const services = settings.services.map((s) => ({ ...s, bays_needed: 1 }))
-  const saved = await api(request, 'PUT', '/api/shop/settings', { ...settings, services, bays: 1, max_per_slot: 1, hours: { ...settings.hours, 2: { open: '08:00', close: '08:30' } } }, auth)
+  const saved = await api(
+    request,
+    'PUT',
+    '/api/shop/settings',
+    { ...settings, services, bays: 1, max_per_slot: 1, hours: { ...settings.hours, 2: { open: '08:00', close: '08:30' } } },
+    auth,
+  )
   expect(saved.status, JSON.stringify(saved.body)).toBe(200)
 
   const other = await newContext(browser, testInfo)

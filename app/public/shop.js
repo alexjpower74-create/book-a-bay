@@ -4,7 +4,23 @@
 // Dates come from the board response (`today`, `from`), never the browser clock. The board polls every 15 s and never
 // redraws while a picker, a note, a menu or the block-out form is open.
 import { api, session, SIGNED_OUT } from '/api.js'
-import { esc, duration, band, clock, dayChips, timeButtons, showShop, copyText, STATUS, icon, addDays, toMin, hhmm, fullLink, instantLabel } from '/ui.js'
+import {
+  esc,
+  duration,
+  band,
+  clock,
+  dayChips,
+  timeButtons,
+  showShop,
+  copyText,
+  STATUS,
+  icon,
+  addDays,
+  toMin,
+  hhmm,
+  fullLink,
+  instantLabel,
+} from '/ui.js'
 import { mountSettings } from '/shop-settings.js'
 
 const POLL_MS = 15000
@@ -15,7 +31,11 @@ const signoutBtn = document.getElementById('signout')
 
 const app = { view: 'board', signinError: '' }
 const b = {
-  mode: 'day', date: null, data: null, error: '', busy: false,
+  mode: 'day',
+  date: null,
+  data: null,
+  error: '',
+  busy: false,
   bay: 1, // the bay shown on a phone
   menu: null, // id of the board item whose details are open
   open: null, // { ctx, id, kind: 'decline' | 'cancel' | 'offer' } or { kind: 'block-form' }
@@ -45,9 +65,12 @@ function render() {
   if (app.view === 'settings') {
     mountSettings(root)
     // On a phone the header has no room for Sign out, so it lives here.
-    root.insertAdjacentHTML('beforeend', `<section class="panel glass phone-only signout-panel"><h3>This phone</h3>
+    root.insertAdjacentHTML(
+      'beforeend',
+      `<section class="panel glass phone-only signout-panel"><h3>This phone</h3>
       <p class="sub">Sign out when you are done, so nobody else sees customers' details.</p>
-      <button type="button" class="btn big wide" id="signout-phone">Sign out</button></section>`)
+      <button type="button" class="btn big wide" id="signout-phone">Sign out</button></section>`,
+    )
     return
   }
   renderBoard()
@@ -163,9 +186,11 @@ function recentSection() {
 function pendingSection(d) {
   return `<section class="pending" aria-labelledby="pending-h">
     <div class="section-head"><h3 id="pending-h">Waiting for you</h3><b class="count" id="pending-count">${d.pending.length}</b></div>
-    ${d.pending.length
-      ? `<div class="cards">${d.pending.map((r) => requestCard(r, 'pending')).join('')}</div>`
-      : `<p class="empty panel glass">Nothing waiting. New booking requests show up here.</p>`}
+    ${
+      d.pending.length
+        ? `<div class="cards">${d.pending.map((r) => requestCard(r, 'pending')).join('')}</div>`
+        : `<p class="empty panel glass">Nothing waiting. New booking requests show up here.</p>`
+    }
   </section>`
 }
 
@@ -291,7 +316,13 @@ function boardSection(d) {
 }
 
 function itemLabel(it) {
-  if (it.kind === 'block') return { title: it.block.label || 'Blocked', sub: `${clock(it.block.time)} to ${clock(it.block.end)}`, status: 'block', id: it.block.id }
+  if (it.kind === 'block')
+    return {
+      title: it.block.label || 'Blocked',
+      sub: `${clock(it.block.time)} to ${clock(it.block.end)}`,
+      status: 'block',
+      id: it.block.id,
+    }
   const r = it.request
   const p = place(it)
   return { title: r.customer?.name || '', sub: `${r.service.name} · ${clock(p.time)} to ${clock(p.end)}`, status: r.status, id: r.id }
@@ -303,7 +334,10 @@ function dayView(d) {
   if (!bays.includes(b.bay)) b.bay = 1
   const count = (n) => day.items.filter((it) => place(it).bays.includes(n)).length
   const seg = `<div class="tabs bayseg" role="tablist" aria-label="Bay">${bays
-    .map((n) => `<button type="button" role="tab" data-bay="${n}" style="--c: ${bayColor(n)}" aria-selected="${n === b.bay}"><i></i>Bay ${n}<b>${count(n)}</b></button>`)
+    .map(
+      (n) =>
+        `<button type="button" role="tab" data-bay="${n}" style="--c: ${bayColor(n)}" aria-selected="${n === b.bay}"><i></i>Bay ${n}<b>${count(n)}</b></button>`,
+    )
     .join('')}</div>`
   if (!day.open || !day.hours) {
     return `<p class="empty closed-day">${esc(day.label)}: ${esc(day.reason || 'Closed')}.</p>${day.items.length ? weekView({ ...d, days: [day] }) : ''}`
@@ -344,15 +378,17 @@ function weekView(d) {
       (day) => `<div class="wday${day.date === d.today ? ' today' : ''}">
         <button type="button" class="wday-head" data-goto-day="${esc(day.date)}"><b>${esc(day.label)}</b>
           <small>${day.open && day.hours ? `${clock(day.hours.open)} to ${clock(day.hours.close)}` : esc(day.reason || 'Closed')}</small></button>
-        ${day.items.length
-          ? day.items
-              .map((it) => {
-                const l = itemLabel(it)
-                return `<button type="button" class="witem" data-item="${esc(l.id)}" data-status="${l.status}" aria-pressed="${b.menu === l.id}">
+        ${
+          day.items.length
+            ? day.items
+                .map((it) => {
+                  const l = itemLabel(it)
+                  return `<button type="button" class="witem" data-item="${esc(l.id)}" data-status="${l.status}" aria-pressed="${b.menu === l.id}">
                   <span class="t">${clock(place(it).time)}</span><span class="n">${esc(l.title)}</span><span class="s">${esc(it.kind === 'block' ? `Bays ${place(it).bays.join(', ')}` : it.request.service.name)}</span></button>`
-              })
-              .join('')
-          : `<p class="wempty">${day.open ? 'Nothing booked' : ''}</p>`}
+                })
+                .join('')
+            : `<p class="wempty">${day.open ? 'Nothing booked' : ''}</p>`
+        }
       </div>`,
     )
     .join('')}</div>`
@@ -450,8 +486,18 @@ function loadOfferDays() {
   const mine = ++offerSeq
   const o = b.offer
   api.shopDays(o.id).then(
-    (r) => { if (mine === offerSeq && b.offer === o) { o.days = r.days; renderBoard() } },
-    (e) => { if (mine === offerSeq && b.offer === o) { o.error = e.message; renderBoard() } },
+    (r) => {
+      if (mine === offerSeq && b.offer === o) {
+        o.days = r.days
+        renderBoard()
+      }
+    },
+    (e) => {
+      if (mine === offerSeq && b.offer === o) {
+        o.error = e.message
+        renderBoard()
+      }
+    },
   )
 }
 
@@ -459,8 +505,18 @@ function loadOfferSlots() {
   const mine = ++offerSeq
   const o = b.offer
   api.shopSlots(o.service, o.date, o.id).then(
-    (r) => { if (mine === offerSeq && b.offer === o) { o.slots = r; renderBoard() } },
-    (e) => { if (mine === offerSeq && b.offer === o) { o.error = e.message; renderBoard() } },
+    (r) => {
+      if (mine === offerSeq && b.offer === o) {
+        o.slots = r
+        renderBoard()
+      }
+    },
+    (e) => {
+      if (mine === offerSeq && b.offer === o) {
+        o.error = e.message
+        renderBoard()
+      }
+    },
   )
 }
 
@@ -579,7 +635,11 @@ root.addEventListener('click', async (e) => {
       renderBoard()
       return loadOfferDays()
     case 'offer-send':
-      return act(() => api.offer(id, b.offer.date, b.offer.time, b.note.trim()), id, 'New time offered. It shows on their status page. Copy the text below and send it from your phone.')
+      return act(
+        () => api.offer(id, b.offer.date, b.offer.time, b.note.trim()),
+        id,
+        'New time offered. It shows on their status page. Copy the text below and send it from your phone.',
+      )
     case 'close':
       Object.assign(b, { open: null, offer: null, note: '' })
       return renderBoard()
@@ -588,7 +648,9 @@ root.addEventListener('click', async (e) => {
       if (!m) return
       const ok = await copyText(fullLink(m.text, r.status_url))
       t.textContent = ok ? 'Copied' : 'Could not copy'
-      setTimeout(() => { if (t.isConnected) t.textContent = 'Copy text' }, 2500)
+      setTimeout(() => {
+        if (t.isConnected) t.textContent = 'Copy text'
+      }, 2500)
       return
     }
     case 'texts':
@@ -604,7 +666,16 @@ root.addEventListener('click', async (e) => {
       Object.assign(b, { menu: null, open: b.open?.ctx === 'item' ? null : b.open, offer: b.open?.ctx === 'item' ? null : b.offer })
       return renderBoard()
     case 'block-open':
-      b.blockForm = { date: b.data.from < b.data.today ? b.data.today : b.data.from, time: '12:00', end: '13:00', all: true, bays: [], label: 'Walk-in', error: '', conflicts: null }
+      b.blockForm = {
+        date: b.data.from < b.data.today ? b.data.today : b.data.from,
+        time: '12:00',
+        end: '13:00',
+        all: true,
+        bays: [],
+        label: 'Walk-in',
+        error: '',
+        conflicts: null,
+      }
       Object.assign(b, { open: { kind: 'block-form' }, offer: null, menu: null })
       renderBoard()
       return document.getElementById('block-form')?.scrollIntoView({ block: 'nearest' })
@@ -659,7 +730,9 @@ nav.addEventListener('click', (e) => {
 })
 
 async function signOut() {
-  try { await api.signout() } catch {}
+  try {
+    await api.signout()
+  } catch {}
   session.clear()
   Object.assign(b, { data: null, recent: [], cardMsg: {}, texts: {}, menu: null, open: null, offer: null })
   app.signinError = ''

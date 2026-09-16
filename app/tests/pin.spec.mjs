@@ -4,7 +4,8 @@ import { fresh, tap, type, shot, signOutThroughPage, PIN } from './helpers.mjs'
 
 test.beforeEach(async ({ context, request }) => fresh(context, request))
 
-const signinResponse = (page) => page.waitForResponse((r) => new URL(r.url()).pathname === '/api/shop/signin' && r.request().method() === 'POST')
+const signinResponse = (page) =>
+  page.waitForResponse((r) => new URL(r.url()).pathname === '/api/shop/signin' && r.request().method() === 'POST')
 
 test('a wrong PIN shows "That PIN is not right." and the sign-in answers 401', async ({ page }, testInfo) => {
   await page.goto('/shop/')

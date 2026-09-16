@@ -3,7 +3,15 @@
 import { api } from '/api.js'
 import { esc, duration, clock, hhmm } from '/ui.js'
 
-const WEEK = [['1', 'Monday'], ['2', 'Tuesday'], ['3', 'Wednesday'], ['4', 'Thursday'], ['5', 'Friday'], ['6', 'Saturday'], ['0', 'Sunday']]
+const WEEK = [
+  ['1', 'Monday'],
+  ['2', 'Tuesday'],
+  ['3', 'Wednesday'],
+  ['4', 'Thursday'],
+  ['5', 'Friday'],
+  ['6', 'Saturday'],
+  ['0', 'Sunday'],
+]
 const RULE_FIELDS = ['shop_name', 'timezone', 'bays', 'slot_step_min', 'lead_time_min', 'max_per_slot', 'window_days']
 
 function sectionOf(err) {
@@ -22,24 +30,60 @@ export function mountSettings(root) {
   const el = document.createElement('div')
   el.className = 'settings-wrap'
   root.replaceChildren(el)
-  const st = { draft: null, loadError: '', errors: {}, saving: false, saved: '', pin: { current: '', next: '', error: '', ok: '', busy: false } }
+  const st = {
+    draft: null,
+    loadError: '',
+    errors: {},
+    saving: false,
+    saved: '',
+    pin: { current: '', next: '', error: '', ok: '', busy: false },
+  }
 
   el.innerHTML = `<section class="panel glass"><p class="loading" role="status">Loading settings…</p></section>`
   api.settings().then(
-    (s) => { st.draft = structuredClone(s); render() },
-    (e) => { if (e.status !== 401) el.innerHTML = `<section class="panel glass"><div class="alert" role="alert">${esc(e.message)}</div></section>` },
+    (s) => {
+      st.draft = structuredClone(s)
+      render()
+    },
+    (e) => {
+      if (e.status !== 401) el.innerHTML = `<section class="panel glass"><div class="alert" role="alert">${esc(e.message)}</div></section>`
+    },
   )
 
   const select = (attrs, value, options) =>
     `<select ${attrs}>${options.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(value) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`
-  const withCurrent = (options, value, label) => (options.some(([v]) => String(v) === String(value)) ? options : [...options, [value, label(value)]].sort((x, y) => x[0] - y[0]))
+  const withCurrent = (options, value, label) =>
+    options.some(([v]) => String(v) === String(value)) ? options : [...options, [value, label(value)]].sort((x, y) => x[0] - y[0])
   const sectionError = (key) => (st.errors[key] ? `<div class="alert" role="alert" data-error="${key}">${esc(st.errors[key])}</div>` : '')
 
   function render() {
     const s = st.draft
     const marks = range(5 * 60, 23 * 60, 15).map((m) => [hhmm(m), clock(hhmm(m))])
-    const lead = withCurrent([[0, 'Any time'], [30, '30 minutes from now'], [60, '1 hour from now'], [120, '2 hours from now'], [240, '4 hours from now'], [1440, '1 day ahead'], [2880, '2 days ahead']], s.lead_time_min, (v) => `${duration(v)} from now`)
-    const windowOpts = withCurrent([[7, '1 week'], [14, '2 weeks'], [21, '3 weeks'], [30, '30 days'], [45, '45 days'], [60, '60 days']], s.window_days, (v) => `${v} days`)
+    const lead = withCurrent(
+      [
+        [0, 'Any time'],
+        [30, '30 minutes from now'],
+        [60, '1 hour from now'],
+        [120, '2 hours from now'],
+        [240, '4 hours from now'],
+        [1440, '1 day ahead'],
+        [2880, '2 days ahead'],
+      ],
+      s.lead_time_min,
+      (v) => `${duration(v)} from now`,
+    )
+    const windowOpts = withCurrent(
+      [
+        [7, '1 week'],
+        [14, '2 weeks'],
+        [21, '3 weeks'],
+        [30, '30 days'],
+        [45, '45 days'],
+        [60, '60 days'],
+      ],
+      s.window_days,
+      (v) => `${v} days`,
+    )
     const lengths = range(15, 480, 15).map((m) => [m, duration(m)])
 
     el.innerHTML = `
@@ -52,10 +96,22 @@ export function mountSettings(root) {
         ${sectionError('rules')}
         <div class="grid3">
           <div class="field wide"><label for="s-name">Shop name</label><input id="s-name" data-s="shop_name" maxlength="80" value="${esc(s.shop_name)}"></div>
-          <div class="field"><label for="s-bays">Bays</label>${select('id="s-bays" data-s="bays"', s.bays, range(1, 10).map((n) => [n, n === 1 ? '1 bay' : `${n} bays`]))}</div>
-          <div class="field"><label for="s-step">Start times every</label>${select('id="s-step" data-s="slot_step_min"', s.slot_step_min, [[15, '15 minutes'], [30, '30 minutes'], [60, 'hour']])}</div>
+          <div class="field"><label for="s-bays">Bays</label>${select(
+            'id="s-bays" data-s="bays"',
+            s.bays,
+            range(1, 10).map((n) => [n, n === 1 ? '1 bay' : `${n} bays`]),
+          )}</div>
+          <div class="field"><label for="s-step">Start times every</label>${select('id="s-step" data-s="slot_step_min"', s.slot_step_min, [
+            [15, '15 minutes'],
+            [30, '30 minutes'],
+            [60, 'hour'],
+          ])}</div>
           <div class="field"><label for="s-lead">Earliest booking</label>${select('id="s-lead" data-s="lead_time_min"', s.lead_time_min, lead)}</div>
-          <div class="field"><label for="s-max">Bookings per start time</label>${select('id="s-max" data-s="max_per_slot"', s.max_per_slot, range(1, 10).map((n) => [n, String(n)]))}</div>
+          <div class="field"><label for="s-max">Bookings per start time</label>${select(
+            'id="s-max" data-s="max_per_slot"',
+            s.max_per_slot,
+            range(1, 10).map((n) => [n, String(n)]),
+          )}</div>
           <div class="field"><label for="s-window">Customers can book up to</label>${select('id="s-window" data-s="window_days"', s.window_days, windowOpts)}</div>
         </div>
       </section>
@@ -68,9 +124,11 @@ export function mountSettings(root) {
           return `<div class="hours-row" data-day="${k}">
             <span class="dname">${name}</span>
             <label class="check"><input type="checkbox" data-s="closed" data-day="${k}"${h ? '' : ' checked'}> Closed</label>
-            <div class="times2">${h
-              ? `${select(`data-s="open" data-day="${k}" aria-label="${name} opens"`, h.open, withCurrent(marks, h.open, clock))}<span>to</span>${select(`data-s="close" data-day="${k}" aria-label="${name} closes"`, h.close, withCurrent(marks, h.close, clock))}`
-              : `<span class="muted">Closed all day</span>`}</div>
+            <div class="times2">${
+              h
+                ? `${select(`data-s="open" data-day="${k}" aria-label="${name} opens"`, h.open, withCurrent(marks, h.open, clock))}<span>to</span>${select(`data-s="close" data-day="${k}" aria-label="${name} closes"`, h.close, withCurrent(marks, h.close, clock))}`
+                : `<span class="muted">Closed all day</span>`
+            }</div>
           </div>`
         }).join('')}
       </section>
@@ -79,11 +137,17 @@ export function mountSettings(root) {
         <h3>Closed days</h3>
         <p class="sub">Holidays and other days the shop is shut. Customers see the reason.</p>
         ${sectionError('closures')}
-        ${s.closures.map((c, i) => `<div class="list-row closure-row">
+        ${
+          s.closures
+            .map(
+              (c, i) => `<div class="list-row closure-row">
             <div class="field"><label for="c-date-${i}">Day</label><input type="date" id="c-date-${i}" data-s="closure-date" data-i="${i}" value="${esc(c.date)}"></div>
             <div class="field"><label for="c-reason-${i}">Reason</label><input id="c-reason-${i}" data-s="closure-reason" data-i="${i}" maxlength="60" value="${esc(c.reason)}"></div>
             <button type="button" class="btn quiet" data-sact="closure-remove" data-i="${i}">Remove</button>
-          </div>`).join('') || '<p class="muted">No closed days.</p>'}
+          </div>`,
+            )
+            .join('') || '<p class="muted">No closed days.</p>'
+        }
         <div class="actions"><button type="button" class="btn" data-sact="closure-add">Add a closed day</button></div>
       </section>
 
@@ -91,13 +155,21 @@ export function mountSettings(root) {
         <h3>Services</h3>
         <p class="sub">Take a service offline to stop new bookings for it. Existing bookings keep it.</p>
         ${sectionError('services')}
-        ${s.services.map((sv, i) => `<div class="list-row service-row${sv.active ? '' : ' inactive'}">
+        ${s.services
+          .map(
+            (sv, i) => `<div class="list-row service-row${sv.active ? '' : ' inactive'}">
             <div class="field"><label for="sv-name-${i}">Name</label><input id="sv-name-${i}" data-s="svc-name" data-i="${i}" maxlength="40" value="${esc(sv.name)}"></div>
             <div class="field"><label for="sv-min-${i}">How long</label>${select(`id="sv-min-${i}" data-s="svc-minutes" data-i="${i}"`, sv.minutes, withCurrent(lengths, sv.minutes, duration))}</div>
-            <div class="field"><label for="sv-bays-${i}">Bays needed</label>${select(`id="sv-bays-${i}" data-s="svc-bays" data-i="${i}"`, sv.bays_needed, range(1, Math.max(s.bays, sv.bays_needed)).map((n) => [n, String(n)]))}</div>
+            <div class="field"><label for="sv-bays-${i}">Bays needed</label>${select(
+              `id="sv-bays-${i}" data-s="svc-bays" data-i="${i}"`,
+              sv.bays_needed,
+              range(1, Math.max(s.bays, sv.bays_needed)).map((n) => [n, String(n)]),
+            )}</div>
             <label class="check"><input type="checkbox" data-s="svc-active" data-i="${i}"${sv.active ? ' checked' : ''}> Bookable online</label>
             ${sv._new ? `<button type="button" class="btn quiet" data-sact="service-remove" data-i="${i}">Remove</button>` : ''}
-          </div>`).join('')}
+          </div>`,
+          )
+          .join('')}
         <div class="actions"><button type="button" class="btn" data-sact="service-add">Add a service</button></div>
       </section>
 
@@ -130,8 +202,14 @@ export function mountSettings(root) {
     if (!k) return
     st.saved = ''
     switch (k) {
-      case 'shop_name': s.shop_name = t.value; break
-      case 'bays': case 'slot_step_min': case 'lead_time_min': case 'max_per_slot': case 'window_days':
+      case 'shop_name':
+        s.shop_name = t.value
+        break
+      case 'bays':
+      case 'slot_step_min':
+      case 'lead_time_min':
+      case 'max_per_slot':
+      case 'window_days':
         s[k] = Number(t.value)
         if (k === 'bays' && committed) render()
         break
@@ -139,19 +217,34 @@ export function mountSettings(root) {
         s.hours[day] = t.checked ? null : { open: '08:00', close: '17:00' }
         render()
         break
-      case 'open': case 'close': s.hours[day][k] = t.value; break
-      case 'closure-date': s.closures[i].date = t.value; break
-      case 'closure-reason': s.closures[i].reason = t.value; break
-      case 'svc-name': s.services[i].name = t.value; break
-      case 'svc-minutes': s.services[i].minutes = Number(t.value); break
-      case 'svc-bays': s.services[i].bays_needed = Number(t.value); break
+      case 'open':
+      case 'close':
+        s.hours[day][k] = t.value
+        break
+      case 'closure-date':
+        s.closures[i].date = t.value
+        break
+      case 'closure-reason':
+        s.closures[i].reason = t.value
+        break
+      case 'svc-name':
+        s.services[i].name = t.value
+        break
+      case 'svc-minutes':
+        s.services[i].minutes = Number(t.value)
+        break
+      case 'svc-bays':
+        s.services[i].bays_needed = Number(t.value)
+        break
       case 'svc-active':
         s.services[i].active = t.checked
         if (committed) render()
         break
     }
   }
-  el.addEventListener('input', (e) => { if (e.target.tagName !== 'SELECT' && e.target.type !== 'checkbox') edit(e, false) })
+  el.addEventListener('input', (e) => {
+    if (e.target.tagName !== 'SELECT' && e.target.type !== 'checkbox') edit(e, false)
+  })
   el.addEventListener('change', (e) => edit(e, true))
 
   el.addEventListener('click', (e) => {
@@ -182,7 +275,12 @@ export function mountSettings(root) {
     const used = new Set(s.services.filter((x) => x.id).map((x) => x.id))
     for (const sv of s.services) {
       if (sv.id) continue
-      const base = sv.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || 'service'
+      const base =
+        sv.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 28) || 'service'
       let id = base
       for (let n = 2; used.has(id); n++) id = `${base}-${n}`
       used.add(id)

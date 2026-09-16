@@ -31,14 +31,24 @@ const waits = new Set()
 /* ---- server ------------------------------------------------------------- */
 async function up() {
   // Mock mode needs only the static server (its /api proxy has nothing behind it); real mode needs the Worker's API.
-  try { return (await fetch(BASE + (REAL ? '/api/shop' : '/'), { headers: { 'X-Test-Now': NOW } })).status === 200 } catch { return false }
+  try {
+    return (await fetch(BASE + (REAL ? '/api/shop' : '/'), { headers: { 'X-Test-Now': NOW } })).status === 200
+  } catch {
+    return false
+  }
 }
 let server = null
 if (!(await up())) {
-  if (REAL) { console.error(`FAIL no Worker on ${BASE}; start wrangler dev --port ${PORT} --var TEST_MODE:1`); process.exit(1) }
+  if (REAL) {
+    console.error(`FAIL no Worker on ${BASE}; start wrangler dev --port ${PORT} --var TEST_MODE:1`)
+    process.exit(1)
+  }
   server = spawn(process.execPath, ['serve.mjs', String(PORT)], { cwd: APP, stdio: 'ignore' })
   for (let i = 0; i < 50 && !(await up()); i++) await new Promise((r) => setTimeout(r, 100))
-  if (!(await up())) { console.error(`FAIL could not start serve.mjs on ${PORT}`); process.exit(1) }
+  if (!(await up())) {
+    console.error(`FAIL could not start serve.mjs on ${PORT}`)
+    process.exit(1)
+  }
 }
 
 // Page URL: the mock flag only in mock mode.
@@ -49,10 +59,16 @@ const at = (p, extra = '') => {
 
 // Setup through the API (real mode only): arranging data is not UI state.
 async function call(method, p, body, headers = {}) {
-  const r = await fetch(BASE + p, { method, headers: { 'content-type': 'application/json', 'X-Test-Now': NOW, ...headers }, body: body ? JSON.stringify(body) : undefined })
+  const r = await fetch(BASE + p, {
+    method,
+    headers: { 'content-type': 'application/json', 'X-Test-Now': NOW, ...headers },
+    body: body ? JSON.stringify(body) : undefined,
+  })
   const text = await r.text()
   let json = null
-  try { json = JSON.parse(text) } catch {}
+  try {
+    json = JSON.parse(text)
+  } catch {}
   return { status: r.status, body: json ?? text, type: r.headers.get('content-type') }
 }
 async function shopToken() {
@@ -78,10 +94,13 @@ async function tap(page, loc, label, touch) {
   const box = await loc.boundingBox()
   const x = box.x + box.width / 2
   const y = box.y + box.height / 2
-  const hit = await loc.evaluate((el, [px, py]) => {
-    const t = document.elementFromPoint(px, py)
-    return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 140) : 'nothing'
-  }, [x, y])
+  const hit = await loc.evaluate(
+    (el, [px, py]) => {
+      const t = document.elementFromPoint(px, py)
+      return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 140) : 'nothing'
+    },
+    [x, y],
+  )
   if (hit) {
     failures++
     console.log(`  FAIL tap(${label}) hit-test: centre ${Math.round(x)},${Math.round(y)} lands on ${hit}`)
@@ -98,7 +117,7 @@ async function typeInto(page, sel, text, touch) {
 
 const see = (page, text) => page.getByText(text, { exact: false }).first().waitFor({ state: 'visible', timeout: T })
 
-async function tall(page, loc, label, size) {
+async function tall(_page, loc, label, size) {
   if (size !== 390) return
   const box = await loc.boundingBox()
   check(`${label} is at least 44 px tall at 390`, box.height >= 44, `${Math.round(box.height)} px`)
@@ -135,7 +154,10 @@ const scenarios = {
       const full = page.locator('button.day', { hasText: 'Sep 19' })
       check('fully booked Saturday says Full and is disabled', (await full.innerText()).includes('Full') && (await full.isDisabled()))
     }
-    check('closure shows its reason', (await page.locator('button.day', { hasText: 'Sep 21' }).innerText()).includes('Staff training (sample)'))
+    check(
+      'closure shows its reason',
+      (await page.locator('button.day', { hasText: 'Sep 21' }).innerText()).includes('Staff training (sample)'),
+    )
     check('14 day chips', (await page.locator('button.day').count()) === 14)
     await shot('book-2-day')
 
@@ -177,7 +199,10 @@ const scenarios = {
       await page.getByRole('button', { name: 'Copied' }).waitFor({ timeout: T })
       check('clipboard holds the status link', (await page.evaluate(() => navigator.clipboard.readText())) === link)
     } else {
-      await page.locator('#copy-note').filter({ hasText: /copied|copy it/ }).waitFor({ timeout: T })
+      await page
+        .locator('#copy-note')
+        .filter({ hasText: /copied|copy it/ })
+        .waitFor({ timeout: T })
       check('copy gives feedback', true)
     }
     await shot('book-5-sent')
@@ -223,7 +248,12 @@ const scenarios = {
     if (REAL) {
       // Two other customers take 10:00 while this one types (max_per_slot is 2).
       for (const [i, name] of ['Lee Sample (sample)', 'Kim Sample (sample)'].entries()) {
-        const r = await call('POST', '/api/requests', { service: 'oil', date: '2026-09-15', time: '10:00', name, phone: '709-555-0100', make: 'Ford' }, { 'X-Test-IP': `10.0.0.${i + 1}` })
+        const r = await call(
+          'POST',
+          '/api/requests',
+          { service: 'oil', date: '2026-09-15', time: '10:00', name, phone: '709-555-0100', make: 'Ford' },
+          { 'X-Test-IP': `10.0.0.${i + 1}` },
+        )
         check(`another customer takes 10:00 (${i + 1} of 2)`, r.status === 201, `${r.status}`)
       }
     }
@@ -319,7 +349,9 @@ for (const engine of engines) {
     const touch = size === 390
     const opts =
       size === 390
-        ? engine === 'webkit' ? { ...devices['iPhone 14'] } : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
+        ? engine === 'webkit'
+          ? { ...devices['iPhone 14'] }
+          : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
         : { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2 }
     for (const [name, fn] of Object.entries(scenarios)) {
       console.log(`${REAL ? 'real' : 'mock'} ${engine}-${size} ${name}`)

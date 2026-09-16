@@ -5,7 +5,6 @@ import { fresh, tap, type, shot, newContext, signInThroughPage, bookThroughPage 
 test.beforeEach(async ({ context, request }) => fresh(context, request))
 
 test('shop offers another time → customer accepts → Confirmed', async ({ page, browser }, testInfo) => {
-
   const link = await bookThroughPage(page)
 
   const shopContext = await newContext(browser, testInfo)

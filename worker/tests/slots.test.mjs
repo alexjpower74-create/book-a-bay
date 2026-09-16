@@ -4,8 +4,21 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  availableStarts, dayInfo, listDays, nextSlots, holdsFrom, inWindow, localToInstant, localDate,
-  timeLabel, dayLabel, slotLabel, startNumber, pickBays, occupancy, parseTime
+  availableStarts,
+  dayInfo,
+  listDays,
+  nextSlots,
+  holdsFrom,
+  inWindow,
+  localToInstant,
+  localDate,
+  timeLabel,
+  dayLabel,
+  slotLabel,
+  startNumber,
+  pickBays,
+  occupancy,
+  parseTime,
 } from '../src/slots.js'
 
 const NOW = Date.parse('2026-09-14T11:30:00Z')
@@ -21,7 +34,7 @@ const settings = (over = {}) => ({
   window_days: 14,
   hours: { 0: null, 1: weekday, 2: weekday, 3: weekday, 4: weekday, 5: weekday, 6: { open: '09:00', close: '13:00' } },
   closures: [],
-  ...over
+  ...over,
 })
 
 const oil = { id: 'oil', name: 'Oil change', minutes: 30, bays_needed: 1 }
@@ -29,7 +42,7 @@ const brakes = { id: 'brakes', name: 'Brakes', minutes: 120, bays_needed: 1 }
 const truck = { id: 'truck-rv', name: 'Truck or RV service', minutes: 120, bays_needed: 2 }
 
 let seq = 0
-function req (status, date, time, minutes, bays, offer) {
+function req(status, date, time, minutes, bays, offer) {
   const start = parseTime(time)
   const row = { id: `t${++seq}`, status, date, start_min: start, end_min: start + minutes, bays: JSON.stringify(bays) }
   if (offer) {
@@ -39,10 +52,9 @@ function req (status, date, time, minutes, bays, offer) {
   return row
 }
 
-const times = (s, service, date, holds = [], now = NOW) =>
-  availableStarts({ settings: s, service, date, now, holds }).map(x => x.time)
+const times = (s, service, date, holds = [], now = NOW) => availableStarts({ settings: s, service, date, now, holds }).map((x) => x.time)
 const slotAt = (s, service, date, time, holds = [], now = NOW) =>
-  availableStarts({ settings: s, service, date, now, holds }).find(x => x.time === time)
+  availableStarts({ settings: s, service, date, now, holds }).find((x) => x.time === time)
 
 test('an open day has the full grid in slot_step_min steps', () => {
   const t = times(settings(), oil, TUE)
@@ -68,7 +80,7 @@ test('Sunday is closed with its reason and has no slots', () => {
   const info = dayInfo(settings(), '2026-09-20')
   assert.deepEqual(info, { open: false, reason: 'Closed Sundays', hours: null })
   assert.deepEqual(times(settings(), oil, '2026-09-20'), [])
-  const day = listDays({ settings: settings(), service: oil, now: NOW, holds: [] }).find(d => d.date === '2026-09-20')
+  const day = listDays({ settings: settings(), service: oil, now: NOW, holds: [] }).find((d) => d.date === '2026-09-20')
   assert.deepEqual(day, { date: '2026-09-20', label: 'Sun Sep 20', open: false, reason: 'Closed Sundays', available: 0 })
   assert.equal(dayInfo(settings({ hours: { ...settings().hours, 3: null } }), '2026-09-16').reason, 'Closed Wednesdays')
 })
@@ -78,7 +90,7 @@ test('a closure date is closed with its reason', () => {
   assert.equal(dayInfo(settings(), '2026-09-16').open, true) // the same Wednesday without the closure
   assert.deepEqual(dayInfo(settings({ closures }), '2026-09-16'), { open: false, reason: 'Staff training (sample)', hours: null })
   assert.deepEqual(times(settings({ closures }), oil, '2026-09-16'), [])
-  const day = listDays({ settings: settings({ closures }), service: oil, now: NOW, holds: [] }).find(d => d.date === '2026-09-16')
+  const day = listDays({ settings: settings({ closures }), service: oil, now: NOW, holds: [] }).find((d) => d.date === '2026-09-16')
   assert.equal(day.open, false)
   assert.equal(day.reason, 'Staff training (sample)')
   assert.equal(day.available, 0)
@@ -120,7 +132,13 @@ test('max_per_slot caps holding requests starting at the same time, shop-wide', 
   assert.equal(slotAt(s5, oil, TUE, '10:00', two), undefined, 'max 2 reached although bays 3-5 are free')
   assert.deepEqual(slotAt({ ...s5, max_per_slot: 3 }, oil, TUE, '10:00', two)?.bays, [3])
   assert.ok(slotAt(s5, oil, TUE, '10:30', two), 'the next start is not capped')
-  const blocks = holdsFrom([], [{ id: 'b1', date: TUE, start_min: 600, end_min: 630, bays: '[1]' }, { id: 'b2', date: TUE, start_min: 600, end_min: 630, bays: '[2]' }])
+  const blocks = holdsFrom(
+    [],
+    [
+      { id: 'b1', date: TUE, start_min: 600, end_min: 630, bays: '[1]' },
+      { id: 'b2', date: TUE, start_min: 600, end_min: 630, bays: '[2]' },
+    ],
+  )
   assert.deepEqual(slotAt(settings(), oil, TUE, '10:00', blocks)?.bays, [3], 'block-outs hold bays but are not bookings in the cap')
   assert.equal(startNumber([1], 2), 2)
   assert.equal(startNumber([2], 2), 1, 'a released number is reused')
@@ -128,11 +146,15 @@ test('max_per_slot caps holding requests starting at the same time, shop-wide', 
 })
 
 test('declined and cancelled requests hold nothing', () => {
-  const rows = [1, 2, 3].flatMap(bay => [req('declined', TUE, '10:00', 60, [bay]), req('cancelled', TUE, '10:00', 60, [bay])])
+  const rows = [1, 2, 3].flatMap((bay) => [req('declined', TUE, '10:00', 60, [bay]), req('cancelled', TUE, '10:00', 60, [bay])])
   assert.equal(holdsFrom(rows).length, 0)
   assert.deepEqual(slotAt(settings(), oil, TUE, '10:00', holdsFrom(rows))?.bays, [1])
-  const held = [1, 2, 3].map(bay => req('confirmed', TUE, '10:00', 60, [bay]))
-  assert.equal(slotAt(settings({ max_per_slot: 5 }), oil, TUE, '10:00', holdsFrom(held)), undefined, 'control: the same rows confirmed do hold')
+  const held = [1, 2, 3].map((bay) => req('confirmed', TUE, '10:00', 60, [bay]))
+  assert.equal(
+    slotAt(settings({ max_per_slot: 5 }), oil, TUE, '10:00', holdsFrom(held)),
+    undefined,
+    'control: the same rows confirmed do hold',
+  )
 })
 
 test('an offered request holds its offer time, not its original time', () => {
@@ -169,12 +191,23 @@ test('next: up to three starts after the requested one, rest of the day first, t
   assert.deepEqual(n, [
     { date: TUE, time: '09:30', label: 'Tue Sep 15, 9:30 AM' },
     { date: TUE, time: '10:00', label: 'Tue Sep 15, 10:00 AM' },
-    { date: TUE, time: '10:30', label: 'Tue Sep 15, 10:30 AM' }
+    { date: TUE, time: '10:30', label: 'Tue Sep 15, 10:30 AM' },
   ])
   const late = nextSlots({ settings: s, service: oil, date: '2026-09-19', start_min: parseTime('12:00'), now: NOW, holds: [] })
-  assert.deepEqual(late.map(x => `${x.date} ${x.time}`), ['2026-09-19 12:30', '2026-09-21 08:00', '2026-09-21 08:30'], 'skips Sunday')
+  assert.deepEqual(
+    late.map((x) => `${x.date} ${x.time}`),
+    ['2026-09-19 12:30', '2026-09-21 08:00', '2026-09-21 08:30'],
+    'skips Sunday',
+  )
   const closures = [{ date: '2026-09-21', reason: 'Staff training (sample)' }]
-  const late2 = nextSlots({ settings: settings({ closures }), service: oil, date: '2026-09-19', start_min: parseTime('12:30'), now: NOW, holds: [] })
+  const late2 = nextSlots({
+    settings: settings({ closures }),
+    service: oil,
+    date: '2026-09-19',
+    start_min: parseTime('12:30'),
+    now: NOW,
+    holds: [],
+  })
   assert.equal(late2[0].date, '2026-09-22', 'skips Sunday and the Monday closure')
   assert.equal(nextSlots({ settings: s, service: oil, date: '2026-09-27', start_min: 0, now: NOW, holds: [] }).length, 0)
 })

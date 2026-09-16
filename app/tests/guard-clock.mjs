@@ -20,7 +20,9 @@ async function walk(d) {
     const p = path.join(d, e.name)
     if (e.isDirectory()) await walk(p)
     else if (/\.(m?js|html)$/.test(e.name)) {
-      ;(await readFile(p, 'utf8')).split('\n').forEach((line, i) => { if (BAD.test(line)) hits.push(`${path.relative(dir, p)}:${i + 1}: ${line.trim()}`) })
+      ;(await readFile(p, 'utf8')).split('\n').forEach((line, i) => {
+        if (BAD.test(line)) hits.push(`${path.relative(dir, p)}:${i + 1}: ${line.trim()}`)
+      })
     }
   }
 }

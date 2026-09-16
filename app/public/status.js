@@ -9,7 +9,11 @@ const root = document.getElementById('status')
 const token = new URLSearchParams(location.search).get('t') || ''
 
 const v = {
-  shop: null, req: null, error: '', busy: false, actionError: '',
+  shop: null,
+  req: null,
+  error: '',
+  busy: false,
+  actionError: '',
   mode: null, // null | 'pick' | 'cancel'
   pick: null, // { days, date, dayLabel, slots, time, label, error }
   taken: null, // { message, next }
@@ -69,8 +73,18 @@ async function run(action) {
 function loadPickDays() {
   const mine = ++pickSeq
   api.pickDays(token).then(
-    (r) => { if (mine === pickSeq && v.pick) { v.pick.days = r.days; render() } },
-    (e) => { if (mine === pickSeq && v.pick) { v.pick.error = e.message; render() } },
+    (r) => {
+      if (mine === pickSeq && v.pick) {
+        v.pick.days = r.days
+        render()
+      }
+    },
+    (e) => {
+      if (mine === pickSeq && v.pick) {
+        v.pick.error = e.message
+        render()
+      }
+    },
   )
 }
 
@@ -78,8 +92,18 @@ function loadPickSlots() {
   const mine = ++pickSeq
   const p = v.pick
   api.pickSlots(token, p.date).then(
-    (r) => { if (mine === pickSeq && v.pick === p) { p.slots = r; render() } },
-    (e) => { if (mine === pickSeq && v.pick === p) { p.error = e.message; render() } },
+    (r) => {
+      if (mine === pickSeq && v.pick === p) {
+        p.slots = r
+        render()
+      }
+    },
+    (e) => {
+      if (mine === pickSeq && v.pick === p) {
+        p.error = e.message
+        render()
+      }
+    },
   )
 }
 
@@ -102,8 +126,12 @@ function render() {
       <p class="eyebrow">Status</p>
       <div class="pill" data-status="${esc(r.status)}" id="status-pill"><i></i><span>${esc(st.label)}</span></div>
       <p class="lede">${esc(st.text)}</p>
-      ${r.status === 'offered' && r.offer ? `<div class="offer"><p class="eyebrow">New time from the shop</p><p class="when">${esc(r.offer.label)}</p>
-        <p class="range">${clock(r.offer.time)} to ${clock(r.offer.end)}</p></div>` : ''}
+      ${
+        r.status === 'offered' && r.offer
+          ? `<div class="offer"><p class="eyebrow">New time from the shop</p><p class="when">${esc(r.offer.label)}</p>
+        <p class="range">${clock(r.offer.time)} to ${clock(r.offer.end)}</p></div>`
+          : ''
+      }
       ${r.shop_note ? `<div class="shop-note"><b>Note from the shop</b><p>${esc(r.shop_note)}</p></div>` : ''}
       ${v.actionError ? `<div class="alert" role="alert">${esc(v.actionError)}</div>` : ''}
       ${v.mode === 'pick' ? picker() : ''}
@@ -165,9 +193,16 @@ function picker() {
   }
   if (v.taken) {
     const n = v.taken.next.length
-    const lead = ['There are no other times open right now.', 'Here is the next one:', 'Here are the next two:', 'Here are the next three:'][n]
+    const lead = [
+      'There are no other times open right now.',
+      'Here is the next one:',
+      'Here are the next two:',
+      'Here are the next three:',
+    ][n]
     body += `<div class="taken" role="alert"><p>${esc(v.taken.message)} ${lead}</p>${
-      n ? `<div class="alts">${v.taken.next.map((x, i) => `<button type="button" class="btn alt" data-act="alt" data-i="${i}">${esc(x.label)}</button>`).join('')}</div>` : ''
+      n
+        ? `<div class="alts">${v.taken.next.map((x, i) => `<button type="button" class="btn alt" data-act="alt" data-i="${i}">${esc(x.label)}</button>`).join('')}</div>`
+        : ''
     }</div>`
   }
   return `<div class="picker">${body}
@@ -200,7 +235,12 @@ root.addEventListener('click', (e) => {
     case 'accept':
       return run(() => api.accept(token))
     case 'pick':
-      Object.assign(v, { mode: 'pick', actionError: '', taken: null, pick: { days: null, date: null, dayLabel: '', slots: null, time: null, label: '', error: '' } })
+      Object.assign(v, {
+        mode: 'pick',
+        actionError: '',
+        taken: null,
+        pick: { days: null, date: null, dayLabel: '', slots: null, time: null, label: '', error: '' },
+      })
       render()
       return loadPickDays()
     case 'pick-close':
@@ -231,6 +271,12 @@ document.addEventListener('visibilitychange', () => {
 })
 setInterval(refresh, POLL_MS)
 
-api.shop().then((shop) => { v.shop = shop; if (!v.req) showShop(shop) }, () => {})
+api.shop().then(
+  (shop) => {
+    v.shop = shop
+    if (!v.req) showShop(shop)
+  },
+  () => {},
+)
 render()
 refresh()

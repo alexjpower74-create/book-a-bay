@@ -25,9 +25,11 @@ try {
   log.say(run.output.trimEnd())
   const outcomes = (/STATUS-RACE outcomes=(\S+)/.exec(run.output) || [])[1] || ''
   verdictOk = run.status !== 0 && /✖ Confirm and Decline at once/.test(run.output) && /confirmed:0c0s/.test(outcomes)
-  log.say(verdictOk
-    ? 'verdict: RED as expected. With an unconditional release, a Decline that lost to Confirm still deleted the holds: the booking reads confirmed while its bay time is free for someone else.'
-    : `verdict: NOT RED as required (test exit ${run.status}, outcomes ${outcomes || 'none'}).`)
+  log.say(
+    verdictOk
+      ? 'verdict: RED as expected. With an unconditional release, a Decline that lost to Confirm still deleted the holds: the booking reads confirmed while its bay time is free for someone else.'
+      : `verdict: NOT RED as required (test exit ${run.status}, outcomes ${outcomes || 'none'}).`,
+  )
 } catch (e) {
   log.say(`verdict: ERROR ${e.stack || e.message}`)
 } finally {

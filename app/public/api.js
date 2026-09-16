@@ -13,13 +13,29 @@ try {
   if (mode === '1') sessionStorage.setItem(MOCK_KEY, '1')
   if (mode === '0') sessionStorage.removeItem(MOCK_KEY)
   mocked = sessionStorage.getItem(MOCK_KEY) === '1'
-} catch { mocked = mode === '1' }
+} catch {
+  mocked = mode === '1'
+}
 const mock = mocked ? await import('/api.mock.js') : null
 
 export const session = {
-  get() { try { return localStorage.getItem(TOKEN_KEY) || '' } catch { return '' } },
-  set(token) { try { localStorage.setItem(TOKEN_KEY, token) } catch {} },
-  clear() { try { localStorage.removeItem(TOKEN_KEY) } catch {} },
+  get() {
+    try {
+      return localStorage.getItem(TOKEN_KEY) || ''
+    } catch {
+      return ''
+    }
+  },
+  set(token) {
+    try {
+      localStorage.setItem(TOKEN_KEY, token)
+    } catch {}
+  },
+  clear() {
+    try {
+      localStorage.removeItem(TOKEN_KEY)
+    } catch {}
+  },
 }
 
 export class ApiError extends Error {
@@ -52,7 +68,9 @@ async function send(method, path, body) {
   }
   const text = await res.text()
   let data = null
-  try { data = JSON.parse(text) } catch {}
+  try {
+    data = JSON.parse(text)
+  } catch {}
   return { status: res.status, data, text, type: res.headers.get('content-type') || '' }
 }
 

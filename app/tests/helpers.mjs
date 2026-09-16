@@ -39,10 +39,13 @@ export async function tap(page, locator, label = String(locator)) {
   }
   const x = box.x + box.width / 2
   const y = box.y + box.height / 2
-  const hit = await locator.evaluate((el, [px, py]) => {
-    const t = document.elementFromPoint(px, py)
-    return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 160) : 'nothing'
-  }, [x, y])
+  const hit = await locator.evaluate(
+    (el, [px, py]) => {
+      const t = document.elementFromPoint(px, py)
+      return t === el || el.contains(t) ? '' : t ? t.outerHTML.slice(0, 160) : 'nothing'
+    },
+    [x, y],
+  )
   expect(hit, `tap(${label}) hit-test at ${Math.round(x)},${Math.round(y)}: something else is on top`).toBe('')
   const coarse = await page.evaluate(() => matchMedia('(pointer: coarse)').matches)
   if (coarse) await page.touchscreen.tap(x, y)
@@ -57,7 +60,9 @@ export async function type(page, locator, text) {
 export async function api(request, method, url, data, headers = {}) {
   const r = await request.fetch(url, { method, data, headers: { ...clock, ...headers } })
   let body = null
-  try { body = await r.json() } catch {}
+  try {
+    body = await r.json()
+  } catch {}
   return { status: r.status(), body, type: r.headers()['content-type'] || '' }
 }
 

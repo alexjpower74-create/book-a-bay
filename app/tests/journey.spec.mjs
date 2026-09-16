@@ -67,8 +67,15 @@ test('customer books → shop confirms → status page shows Confirmed', async (
   await shot(page, testInfo, 'status-confirmed')
 })
 
-test('the Add to calendar link returns text/calendar', async ({ page, request }, testInfo) => {
-  const made = await api(request, 'POST', '/api/requests', { service: 'oil', date: '2026-09-15', time: '10:00', name: 'Pat Sample (sample)', phone: '709-555-0142', make: 'Toyota' })
+test('the Add to calendar link returns text/calendar', async ({ page, request }, _testInfo) => {
+  const made = await api(request, 'POST', '/api/requests', {
+    service: 'oil',
+    date: '2026-09-15',
+    time: '10:00',
+    name: 'Pat Sample (sample)',
+    phone: '709-555-0142',
+    make: 'Toyota',
+  })
   expect(made.status).toBe(201)
   const token = await shopToken(request)
   const board = await api(request, 'GET', '/api/shop/board?days=7', null, { Authorization: `Bearer ${token}` })

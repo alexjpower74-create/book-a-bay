@@ -31,7 +31,14 @@ async function headerHides(page, testInfo, name) {
     const r = bar.getBoundingClientRect()
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
     const room = document.documentElement.scrollHeight - window.innerHeight
-    return { background: cs.backgroundColor, alpha, onTop: bar.contains(hit), scrollY: Math.round(window.scrollY), headerBottom: Math.round(r.bottom), room: Math.round(room) }
+    return {
+      background: cs.backgroundColor,
+      alpha,
+      onTop: bar.contains(hit),
+      scrollY: Math.round(window.scrollY),
+      headerBottom: Math.round(r.bottom),
+      room: Math.round(room),
+    }
   })
   // A page shorter than the screen cannot put anything under the header; where it can, it must have.
   if (facts.room > facts.headerBottom) {
@@ -51,7 +58,16 @@ test('Request sent: scrolled content does not show through the header', async ({
 })
 
 test('status page: scrolled content does not show through the header', async ({ page, request }, testInfo) => {
-  const made = await api(request, 'POST', '/api/requests', { service: 'oil', date: '2026-09-15', time: '10:00', name: 'Pat Sample (sample)', phone: '709-555-0142', make: 'Toyota', model: 'Corolla', note: 'Squeak from the front left when braking.' })
+  const made = await api(request, 'POST', '/api/requests', {
+    service: 'oil',
+    date: '2026-09-15',
+    time: '10:00',
+    name: 'Pat Sample (sample)',
+    phone: '709-555-0142',
+    make: 'Toyota',
+    model: 'Corolla',
+    note: 'Squeak from the front left when braking.',
+  })
   expect(made.status).toBe(201)
   await page.goto(made.body.status_url)
   await expect(page.locator('#status-pill')).toHaveText('Requested')
@@ -83,12 +99,18 @@ test('Settings: fields under the sticky Save bar do not show through it', async 
     const under = new Set()
     for (const fx of [0.1, 0.3, 0.5, 0.7, 0.9]) {
       for (const el of document.elementsFromPoint(r.left + r.width * fx, r.top + r.height / 2)) {
-        if (!bar.contains(el) && el.closest('[data-section], .pin-form')) under.add(el.closest('.field, .hours-row, .list-row, [data-section], .pin-form'))
+        if (!bar.contains(el) && el.closest('[data-section], .pin-form'))
+          under.add(el.closest('.field, .hours-row, .list-row, [data-section], .pin-form'))
       }
     }
     return {
-      background: cs.backgroundColor, alpha, onTop: bar.contains(hit), hitTag: hit?.tagName,
-      showing: r.top < window.innerHeight && r.bottom > 0, underCount: under.size, bottomGap: Math.round(window.innerHeight - r.bottom),
+      background: cs.backgroundColor,
+      alpha,
+      onTop: bar.contains(hit),
+      hitTag: hit?.tagName,
+      showing: r.top < window.innerHeight && r.bottom > 0,
+      underCount: under.size,
+      bottomGap: Math.round(window.innerHeight - r.bottom),
     }
   })
   expect(facts.showing, 'the Save bar is on screen').toBe(true)

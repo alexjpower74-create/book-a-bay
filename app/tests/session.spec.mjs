@@ -40,7 +40,9 @@ test('a confirmed booking already sent to Shop Board says when it went', async (
   await page.route('**/api/shop/board?*', async (route) => {
     const response = await route.fetch()
     const json = await response.json()
-    for (const day of json.days) for (const it of day.items) if (it.kind === 'request' && it.request.id === confirmed.id) it.request.pushed_at = '2026-09-14T11:42:00.000Z'
+    for (const day of json.days)
+      for (const it of day.items)
+        if (it.kind === 'request' && it.request.id === confirmed.id) it.request.pushed_at = '2026-09-14T11:42:00.000Z'
     await route.fulfill({ response, json })
   })
 
